@@ -37,6 +37,37 @@ function splitSegmentBySentences(seg: Segment): Segment[] {
   return result;
 }
 
+function segmentsToSrt(segments: { start: number; end: number; text: string }[]) {
+  const formatTime = (t: number) => {
+    const hours = Math.floor(t / 3600);
+    const minutes = Math.floor((t % 3600) / 60);
+    const seconds = Math.floor(t % 60);
+    const millis = Math.floor((t - Math.floor(t)) * 1000);
+
+    const pad = (n: number, width: number) => n.toString().padStart(width, "0");
+
+    return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(millis, 3)}`;
+  };
+
+  return segments
+    .map((s, i) => {
+      const idx = i + 1;
+      const start = formatTime(s.start);
+      const end = formatTime(s.end);
+      const text = s.text.trim() || "...";
+      return `${idx}\n${start} --> ${end}\n${text}\n`;
+    })
+    .join("\n");
+}
+
+
+
+
+
+
+
+
+
 export default function HomePage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +76,30 @@ export default function HomePage() {
   const [currentTime, setCurrentTime] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  function handleDownloadSrt() {
+    if (!segments.length) return;
+
+    const srt = segmentsToSrt(segments);
+    const blob = new Blob([srt], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "subtitles.srt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+
+
+
+
+
+
+
 
   async function handleFileChange(
     e: React.ChangeEvent<HTMLInputElement>
@@ -108,7 +163,17 @@ export default function HomePage() {
           onChange={handleFileChange}
           className="mb-4"
         />
+                <div className="flex items-center gap-2 mb-2">
+          <button
+            onClick={handleDownloadSrt}
+            disabled={!segments.length}
+            className="px-3 py-1 text-xs rounded border border-gray-600 disabled:opacity-40"
+          >
+            Export .srt
+          </button>
+        </div>
 
+      
         {loading && <p>Generating subtitles...</p>}
         {error && <p className="text-red-500 text-sm">{error}</p>}
 
@@ -140,9 +205,25 @@ export default function HomePage() {
                   }
                 }}
               >
-                <div className="font-medium">
-                  {idx + 1}. {s.text}
-                </div>
+                <div className="flex items-start gap-2">
+      <span className="text-xs text-gray-400 mt-1">{idx + 1}.</span>
+      <textarea
+        value={s.text}
+        onChange={(e) => {
+          const newText = e.target.value;
+          setSegments((prev) => {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], text: newText };
+            return copy;
+          });
+        }}
+        className={
+          "w-full bg-transparent outline-none resize-none text-sm " +
+          (isActive ? "text-white" : "text-gray-200")
+        }
+        rows={1}
+      />
+    </div>
                 <div className="text-[11px] text-gray-500">
                   {s.start.toFixed(2)}s → {s.end.toFixed(2)}s
                 </div>
