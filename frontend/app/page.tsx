@@ -74,6 +74,18 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+    const [subtitleStyle, setSubtitleStyle] = useState<{
+    fontSize: number;
+    color: string;
+    background: string;
+  }>({
+    fontSize: 24,
+    color: "#ffffff",
+    background: "rgba(0, 0, 0, 0.6)",
+  });
+
+
+
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -94,6 +106,35 @@ export default function HomePage() {
   }
 
 
+  function handleAddBelow(index: number) {
+    setSegments((prev) => {
+      if (!prev.length) return prev;
+      const current = prev[index];
+      const mid = (current.start + current.end) / 2;
+
+      const firstHalf: Segment = {
+        ...current,
+        end: mid,
+      };
+      const secondHalf: Segment = {
+        ...current,
+        start: mid,
+      };
+
+      const copy = [...prev];
+      copy.splice(index, 1, firstHalf, secondHalf);
+      return copy;
+    });
+  }
+
+  function handleDelete(index: number) {
+    setSegments((prev) => {
+      if (prev.length <= 1) return prev; // keep at least one line
+      const copy = [...prev];
+      copy.splice(index, 1);
+      return copy;
+    });
+  }
 
 
 
@@ -163,7 +204,7 @@ export default function HomePage() {
           onChange={handleFileChange}
           className="mb-4"
         />
-                <div className="flex items-center gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2">
           <button
             onClick={handleDownloadSrt}
             disabled={!segments.length}
@@ -171,7 +212,56 @@ export default function HomePage() {
           >
             Export .srt
           </button>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+      <label className="flex items-center gap-1">
+            Size
+            <input
+              type="number"
+              min={12}
+              max={64}
+              value={subtitleStyle.fontSize}
+              onChange={(e) =>
+                setSubtitleStyle((prev) => ({
+                  ...prev,
+                  fontSize: Number(e.target.value || 24),
+                }))
+              }
+              className="w-14 bg-black border border-gray-700 rounded px-1 py-[2px]"
+            />
+          </label>
+
+          <label className="flex items-center gap-1">
+            Text
+            <input
+              type="color"
+              value={subtitleStyle.color}
+              onChange={(e) =>
+                setSubtitleStyle((prev) => ({
+                  ...prev,
+                  color: e.target.value,
+                }))
+              }
+              className="w-8 h-5 p-0 border border-gray-700 rounded"
+            />
+          </label>
+
+          <label className="flex items-center gap-1">
+            Bg
+            <input
+              type="color"
+              value={"#000000"}
+              onChange={(e) =>
+                setSubtitleStyle((prev) => ({
+                  ...prev,
+                  background: "rgba(0,0,0,0.6)", // keep semi‑transparent for now
+                }))
+              }
+              className="w-8 h-5 p-0 border border-gray-700 rounded"
+            />
+          </label>
+  </div>
+
+      </div>
 
       
         {loading && <p>Generating subtitles...</p>}
@@ -179,9 +269,10 @@ export default function HomePage() {
 
         <div className="space-y-2 mt-2 text-sm">
           {segments.map((s, idx) => {
-            const padding=0.15; // it is 150ms tolerence to highlight
-            const isActive =
-              currentTime >= s.start && currentTime < s.end;
+           const padding = 0.15; // 150ms tolerance
+          const isActive =
+            currentTime >= s.start - padding && currentTime < s.end + padding;
+
 
             return (
               <div
@@ -224,9 +315,34 @@ export default function HomePage() {
         rows={1}
       />
     </div>
-                <div className="text-[11px] text-gray-500">
-                  {s.start.toFixed(2)}s → {s.end.toFixed(2)}s
-                </div>
+                    <div className="text-[11px] text-gray-500 flex items-center justify-between mt-1">
+      <span>
+        {s.start.toFixed(2)}s → {s.end.toFixed(2)}s
+      </span>
+      <span className="flex gap-1">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleAddBelow(idx);
+          }}
+          className="px-1 py-[1px] text-[10px] border border-gray-600 rounded"
+        >
+          + split
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDelete(idx);
+          }}
+          className="px-1 py-[1px] text-[10px] border border-red-500 text-red-400 rounded"
+        >
+          del
+        </button>
+      </span>
+    </div>
+
               </div>
             );
           })}
