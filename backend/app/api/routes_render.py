@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 import uuid
 from tempfile import gettempdir
+from fastapi.responses import FileResponse
 
 
 router = APIRouter(tags=["render"])
@@ -174,4 +175,21 @@ async def render_video(
     print("FFmpeg finished OK")
     return {"file_name": out_path.name}
 
+#downlaod folder configuration
+@router.get("/render/download/{file_name}")
+async def download_rendered_video(file_name: str):
+    """
+    Serve the rendered mp4 from the temp folder so the browser can download it.
+    """
+    tmp_dir = Path(gettempdir())
+    file_path = tmp_dir / file_name
 
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Tell the browser it's an mp4 and suggest a filename
+    return FileResponse(
+        path=file_path,
+        media_type="video/mp4",
+        filename=file_name,
+    )

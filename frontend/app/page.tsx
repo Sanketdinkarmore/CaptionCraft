@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   uploadAndTranscribe,
   renderVideo,
+  downloadRenderedVideo,
   type Segment,
   type StyledSpan,
 } from "@/lib/apiClient";
@@ -270,6 +271,7 @@ export default function HomePage() {
     try {
       const { file_name } = await renderVideo(segments, videoUrl);
       alert(`Rendered file on backend: ${file_name}`);
+      await downloadRenderedVideo(file_name);
     } catch (err: any) {
       console.error(err);
       setError(err.message ?? "Render failed");
