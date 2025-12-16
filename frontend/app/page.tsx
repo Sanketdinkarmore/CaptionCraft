@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   uploadAndTranscribe,
+  renderVideo,
   type Segment,
   type StyledSpan,
 } from "@/lib/apiClient";
@@ -94,6 +95,7 @@ function segmentsToSrt(segments: Segment[]) {
 export default function HomePage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -107,13 +109,11 @@ export default function HomePage() {
     background: "rgba(0, 0, 0, 0.6)",
   });
 
-  // which word user is editing
   const [selectedWord, setSelectedWord] = useState<{
     segmentIndex: number | null;
     wordIndex: number | null;
   }>({ segmentIndex: null, wordIndex: null });
 
-  // per-word style draft (for Color + font family + bold)
   const [wordStyleDraft, setWordStyleDraft] = useState<{
     color: string;
     fontFamily: string;
@@ -174,7 +174,6 @@ export default function HomePage() {
     });
   }
 
-  // Apply current wordStyleDraft to selected word (segmentIndex, wordIndex)
   function applyWordStyle(
     segmentIndex: number,
     wordIndex: number
@@ -221,12 +220,10 @@ export default function HomePage() {
     try {
       const data = await uploadAndTranscribe(file);
 
-      // convert raw {start,end,text} to rich segments
       const withContent: Segment[] = data.segments.map((raw) =>
         makeSegmentFromText(raw.start, raw.end, raw.text)
       );
 
-      // split into sentences
       const processed: Segment[] = withContent.flatMap((seg) =>
         splitSegmentBySentences(seg)
       );
@@ -266,6 +263,21 @@ export default function HomePage() {
     (s) => currentTime >= s.start && currentTime < s.end
   );
 
+  async function handleRenderVideo() {
+    if (!videoUrl || !segments.length) return;
+    setRendering(true);
+    setError(null);
+    try {
+      const { file_name } = await renderVideo(segments, videoUrl);
+      alert(`Rendered file on backend: ${file_name}`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Render failed");
+    } finally {
+      setRendering(false);
+    }
+  }
+
   return (
     <main className="min-h-screen flex">
       {/* Left panel - subtitles */}
@@ -280,13 +292,22 @@ export default function HomePage() {
         />
 
         <div className="mb-3 space-y-2">
-          <button
-            onClick={handleDownloadSrt}
-            disabled={!segments.length}
-            className="px-3 py-1 text-xs rounded border border-gray-600 disabled:opacity-40"
-          >
-            Export .srt
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleDownloadSrt}
+              disabled={!segments.length}
+              className="px-3 py-1 text-xs rounded border border-gray-600 disabled:opacity-40"
+            >
+              Export .srt
+            </button>
+            <button
+              onClick={handleRenderVideo}
+              disabled={!segments.length || !videoUrl || rendering}
+              className="px-3 py-1 text-xs rounded border border-green-600 disabled:opacity-40"
+            >
+              {rendering ? "Rendering..." : "Render Video"}
+            </button>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <label className="flex items-center gap-1">
@@ -396,7 +417,6 @@ export default function HomePage() {
                   />
                 </div>
 
-                {/* Word picker */}
                 <div className="flex flex-wrap gap-1 text-[11px] mt-1">
                   {words.map((w, wIdx) => {
                     const isSelected =
@@ -427,7 +447,6 @@ export default function HomePage() {
                   })}
                 </div>
 
-                {/* Style controls for selected word */}
                 {isSegmentSelected &&
                   selectedWord.wordIndex !== null && (
                     <div className="mt-2 space-y-1 text-[11px]">
@@ -543,7 +562,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Center panel - video preview with overlay */}
       <section className="flex-1 flex flex-col items-center justify-center p-4">
         {videoUrl ? (
           <div className="relative inline-block">
@@ -572,7 +590,6 @@ export default function HomePage() {
                         ? "underline"
                         : "none",
                       fontFamily:
-                        // TS may not know this property; it's fine at runtime
                         (span as any).fontFamily ??
                         "Inter, system-ui, sans-serif",
                     }}

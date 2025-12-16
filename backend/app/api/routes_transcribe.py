@@ -3,7 +3,8 @@ import tempfile
 import subprocess
 from app.services.asr_service import transcribe_audio_to_segments
 
-router = APIRouter(prefix="/api", tags=["transcription"])
+# No prefix here
+router = APIRouter(tags=["transcription"])
 
 
 def extract_audio(video_path: str) -> str:
