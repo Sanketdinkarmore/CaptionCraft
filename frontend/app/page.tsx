@@ -9,6 +9,8 @@ import {
   type StyledSpan,
 } from "@/lib/apiClient";
 
+
+
 // Make a Segment with content from plain text
 function makeSegmentFromText(
   start: number,
