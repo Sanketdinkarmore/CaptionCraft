@@ -72,7 +72,7 @@ function splitSegmentBySentences(seg: Segment): Segment[] {
 
   const result: Segment[] = [];
   let cursor = seg.start;
-
+  
   for (const sentence of sentences) {
     const ratio = sentence.length / totalChars;
     const dur = totalDuration * ratio;
