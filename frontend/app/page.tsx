@@ -19,12 +19,36 @@ function makeSegmentFromText(
     start,
     end,
     content: [{ text }],
+    position: { x: 0.5, y: 0.8 },
   };
 }
 
 // Get plain text from a rich Segment
 function segmentToText(seg: Segment): string {
   return seg.content.map((sp) => sp.text).join("");
+}
+
+// FIXED: Split content into word-level spans for styling
+function ensureWordSpans(seg: Segment): StyledSpan[] {
+  const text = segmentToText(seg);
+  const words = text.split(" ");
+  
+  return words.map((word, i) => {
+    const suffix = i < words.length - 1 ? " " : "";
+    // Find if this word already has styling (preserve existing styles)
+    const existingSpan = seg.content.find(span => 
+      span.text.trim() === word.trim()
+    );
+    
+    if (existingSpan && (existingSpan as any).color) {
+      return {
+        ...existingSpan,
+        text: word + suffix
+      } as StyledSpan;
+    }
+    
+    return { text: word + suffix } as StyledSpan;
+  });
 }
 
 // Split one long segment (rich) into multiple sentence-level segments
@@ -57,6 +81,7 @@ function splitSegmentBySentences(seg: Segment): Segment[] {
       start: sStart,
       end: sEnd,
       content: [{ text: sentence }],
+      position: seg.position ?? { x: 0.5, y: 0.8 },
     };
 
     result.push(newSeg);
@@ -93,6 +118,10 @@ function segmentsToSrt(segments: Segment[]) {
     .join("\n");
 }
 
+function clamp01(v: number) {
+  return Math.max(0, Math.min(1, v));
+}
+
 export default function HomePage() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,10 +148,12 @@ export default function HomePage() {
     color: string;
     fontFamily: string;
     bold: boolean;
+    fontSize: number;
   }>({
     color: "#ffd54f",
     fontFamily: "Inter, system-ui, sans-serif",
     bold: true,
+    fontSize: 36,
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -175,6 +206,7 @@ export default function HomePage() {
     });
   }
 
+  // FIXED: applyWordStyle now ensures word-level spans exist, then styles the right one
   function applyWordStyle(
     segmentIndex: number,
     wordIndex: number
@@ -182,24 +214,23 @@ export default function HomePage() {
     setSegments((prev) => {
       const copy = [...prev];
       const seg = copy[segmentIndex];
-      const text = segmentToText(seg);
-      const parts = text.split(" ");
-      if (!parts[wordIndex]) return prev;
+      if (!seg) return prev;
 
-      const spans: StyledSpan[] = parts.map((part, i) => {
-        const suffix = i < parts.length - 1 ? " " : "";
-        if (i === wordIndex) {
-          return {
-            text: part + suffix,
-            color: wordStyleDraft.color,
-            fontFamily: wordStyleDraft.fontFamily,
-            fontWeight: wordStyleDraft.bold ? "bold" : "normal",
-          } as StyledSpan;
-        }
-        return { text: part + suffix };
-      });
+      // Ensure we have word-level spans
+      const wordSpans = ensureWordSpans(seg);
+      
+      // Apply style to the selected word index
+      if (wordSpans[wordIndex]) {
+        wordSpans[wordIndex] = {
+          ...wordSpans[wordIndex],
+          color: wordStyleDraft.color,
+          fontFamily: wordStyleDraft.fontFamily,
+          fontWeight: wordStyleDraft.bold ? "bold" : "normal",
+          fontSize: wordStyleDraft.fontSize,
+        } as StyledSpan;
+      }
 
-      copy[segmentIndex] = { ...seg, content: spans };
+      copy[segmentIndex] = { ...seg, content: wordSpans };
       return copy;
     });
   }
@@ -234,7 +265,12 @@ export default function HomePage() {
         const start = Math.max(s.start, lastEnd);
         const end = Math.max(start + 0.05, s.end);
         lastEnd = end;
-        return { ...s, start, end };
+        return {
+          ...s,
+          start,
+          end,
+          position: s.position ?? { x: 0.5, y: 0.8 },
+        } as Segment;
       });
 
       setSegments(fixed);
@@ -266,11 +302,11 @@ export default function HomePage() {
 
   async function handleRenderVideo() {
     if (!videoUrl || !segments.length) return;
+    console.log("segments to backend:", JSON.stringify(segments, null, 2));
     setRendering(true);
     setError(null);
     try {
       const { file_name } = await renderVideo(segments, videoUrl);
-      alert(`Rendered file on backend: ${file_name}`);
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
       console.error(err);
@@ -280,9 +316,51 @@ export default function HomePage() {
     }
   }
 
+  function makePositionHandlers(idx: number) {
+    return {
+      onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
+        const video = videoRef.current;
+        if (!video) return;
+        const rect = video.getBoundingClientRect();
+        const startX = e.clientX;
+        const startY = e.clientY;
+
+        const seg = segments[idx];
+        const pos = seg.position ?? { x: 0.5, y: 0.8 };
+        const startPxX = rect.left + pos.x * rect.width;
+        const startPxY = rect.top + pos.y * rect.height;
+
+        const onMove = (ev: MouseEvent) => {
+          const dx = ev.clientX - startX;
+          const dy = ev.clientY - startY;
+          const newPxX = startPxX + dx;
+          const newPxY = startPxY + dy;
+          const newX = clamp01((newPxX - rect.left) / rect.width);
+          const newY = clamp01((newPxY - rect.top) / rect.height);
+
+          setSegments((prev) => {
+            const copy = [...prev];
+            copy[idx] = {
+              ...copy[idx],
+              position: { x: newX, y: newY },
+            };
+            return copy;
+          });
+        };
+
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        };
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      },
+    };
+  }
+
   return (
     <main className="min-h-screen flex">
-      {/* Left panel - subtitles */}
       <section className="w-1/3 border-r p-4 overflow-y-auto">
         <h1 className="font-semibold mb-3">Subtitles</h1>
 
@@ -403,11 +481,11 @@ export default function HomePage() {
                       const newText = e.target.value;
                       setSegments((prev) => {
                         const copy = [...prev];
-                        copy[idx] = makeSegmentFromText(
-                          s.start,
-                          s.end,
-                          newText
-                        );
+                        const seg = copy[idx];
+                        copy[idx] = {
+                          ...seg,
+                          content: [{ text: newText }],
+                        };
                         return copy;
                       });
                     }}
@@ -419,6 +497,7 @@ export default function HomePage() {
                   />
                 </div>
 
+                {/* Word buttons from plainText.split(" ") - keeps individual word selection */}
                 <div className="flex flex-wrap gap-1 text-[11px] mt-1">
                   {words.map((w, wIdx) => {
                     const isSelected =
@@ -453,9 +532,7 @@ export default function HomePage() {
                   selectedWord.wordIndex !== null && (
                     <div className="mt-2 space-y-1 text-[11px]">
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-400">
-                          Word style:
-                        </span>
+                        <span className="text-gray-400">Word style:</span>
                         <input
                           type="color"
                           value={wordStyleDraft.color}
@@ -477,19 +554,24 @@ export default function HomePage() {
                           }
                           className="bg-black border border-gray-700 rounded px-1 py-[1px]"
                         >
-                          <option value="Inter, system-ui, sans-serif">
-                            Inter
-                          </option>
-                          <option value="Poppins, system-ui, sans-serif">
-                            Poppins
-                          </option>
-                          <option value="Roboto, system-ui, sans-serif">
-                            Roboto
-                          </option>
-                          <option value="Impact, system-ui, sans-serif">
-                            Impact
-                          </option>
+                          <option value="Inter, system-ui, sans-serif">Inter</option>
+                          <option value="Poppins, system-ui, sans-serif">Poppins</option>
+                          <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                          <option value="Impact, system-ui, sans-serif">Impact</option>
                         </select>
+                        <input
+                          type="number"
+                          min={8}
+                          max={128}
+                          value={wordStyleDraft.fontSize}
+                          onChange={(e) =>
+                            setWordStyleDraft((prev) => ({
+                              ...prev,
+                              fontSize: Number(e.target.value || 36),
+                            }))
+                          }
+                          className="w-12 bg-black border border-gray-700 rounded px-1 py-[1px]"
+                        />
                         <button
                           type="button"
                           onClick={(e) => {
@@ -576,10 +658,14 @@ export default function HomePage() {
 
             {activeSegment && (
               <div
-                className="pointer-events-none absolute left-1/2 bottom-10 -translate-x-1/2 px-4 py-2 rounded max-w-[90%] text-center"
+                {...makePositionHandlers(segments.indexOf(activeSegment))}
+                className="pointer-events-auto absolute px-4 py-2 rounded max-w-[90%] text-center cursor-move"
                 style={{
                   fontSize: `${subtitleStyle.fontSize}px`,
                   background: subtitleStyle.background,
+                  left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
+                  top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
+                  transform: "translate(-50%, -50%)",
                 }}
               >
                 {activeSegment.content.map((span, i) => (
@@ -588,12 +674,9 @@ export default function HomePage() {
                     style={{
                       color: span.color ?? subtitleStyle.color,
                       fontWeight: span.fontWeight ?? "normal",
-                      textDecoration: span.underline
-                        ? "underline"
-                        : "none",
-                      fontFamily:
-                        (span as any).fontFamily ??
-                        "Inter, system-ui, sans-serif",
+                      textDecoration: span.underline ? "underline" : "none",
+                      fontFamily: (span as any).fontFamily ?? "Inter, system-ui, sans-serif",
+                      fontSize: span.fontSize ?? subtitleStyle.fontSize,
                     }}
                   >
                     {span.text}

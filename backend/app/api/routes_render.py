@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List
 import json
@@ -6,10 +7,16 @@ import subprocess
 from pathlib import Path
 import uuid
 from tempfile import gettempdir
-from fastapi.responses import FileResponse
-
 
 router = APIRouter(tags=["render"])
+
+PLAYRES_X = 1920
+PLAYRES_Y = 1080
+
+
+class Position(BaseModel):
+    x: float | None = None
+    y: float | None = None
 
 
 class StyledSpan(BaseModel):
@@ -17,6 +24,7 @@ class StyledSpan(BaseModel):
     color: str | None = None
     fontWeight: str | None = None
     fontFamily: str | None = None
+    fontSize: float | None = None
     underline: bool | None = False
 
 
@@ -24,6 +32,7 @@ class Segment(BaseModel):
     start: float
     end: float
     content: List[StyledSpan]
+    position: Position | None = None
 
 
 def format_time_ass(seconds: float) -> str:
@@ -46,12 +55,12 @@ def hex_to_ass(color: str) -> str:
 
 
 def build_ass(segments: List[Segment]) -> str:
-    header = """[Script Info]
+    header = f"""[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
 Collisions: Normal
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: {PLAYRES_X}
+PlayResY: {PLAYRES_Y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -66,6 +75,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         start = format_time_ass(seg.start)
         end = format_time_ass(seg.end)
 
+        # default center-bottom
+        px = (
+            seg.position.x * PLAYRES_X
+            if seg.position and seg.position.x is not None
+            else 0.5 * PLAYRES_X
+        )
+        py = (
+            seg.position.y * PLAYRES_Y
+            if seg.position and seg.position.y is not None
+            else 0.9 * PLAYRES_Y
+        )
+
+        line_prefix = f"{{\\pos({int(px)},{int(py)})}}"
+
         text_parts: list[str] = []
         for span in seg.content:
             tags: list[str] = []
@@ -77,13 +100,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 tags.append(f"\\fn{span.fontFamily}")
             if span.underline:
                 tags.append("\\u1")
+            if span.fontSize:
+                tags.append(f"\\fs{int(span.fontSize)}")
 
             if tags:
                 text_parts.append("{" + "".join(tags) + "}" + span.text)
             else:
                 text_parts.append(span.text)
 
-        line_text = "".join(text_parts).replace("\n", "\\N")
+        line_text = line_prefix + "".join(text_parts).replace("\n", "\\N")
         lines.append(
             f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line_text}\n"
         )
@@ -96,11 +121,9 @@ async def render_video(
     video: UploadFile = File(...),
     segments: str = Form(...),
 ):
-    # --- debug log basic info ---
     print("---- /render called ----")
     print("segments length:", len(segments))
 
-    # 1) Parse JSON
     try:
         raw = json.loads(segments)
         print("parsed segments count:", len(raw))
@@ -109,7 +132,6 @@ async def render_video(
         print("JSON / validation error in segments:", repr(e))
         raise HTTPException(status_code=400, detail="Invalid segments JSON")
 
-    # 2) Temp paths
     tmp_dir = Path(gettempdir())
     uid = uuid.uuid4().hex
 
@@ -121,21 +143,17 @@ async def render_video(
     print("ass_path:", ass_path)
     print("out_path:", out_path)
 
-    # 3) Save uploaded video
     with video_path.open("wb") as f:
         f.write(await video.read())
 
-    # 4) Build ASS subtitles
     ass_content = build_ass(seg_models)
     ass_path.write_text(ass_content, encoding="utf-8")
 
-    # 5) Use a relative ASS path to avoid Windows escaping issues
-    #    Copy the .ass file into the current working directory and use only its filename.
+    # copy .ass into cwd and reference by filename (Windows-safe)
     cwd = Path(".").resolve()
     ass_target = cwd / ass_path.name
     ass_target.write_text(ass_content, encoding="utf-8")
 
-    # subtitles filter just needs the filename, no drive letters or slashes
     sub_filter = f"subtitles={ass_target.name}"
     print("ffmpeg subtitles filter:", sub_filter)
 
@@ -160,7 +178,7 @@ async def render_video(
     print("ffmpeg cmd:", " ".join(cmd))
 
     try:
-        proc = subprocess.run(
+        subprocess.run(
             cmd,
             check=True,
             stdout=subprocess.DEVNULL,
@@ -175,19 +193,15 @@ async def render_video(
     print("FFmpeg finished OK")
     return {"file_name": out_path.name}
 
-#downlaod folder configuration
+
 @router.get("/render/download/{file_name}")
 async def download_rendered_video(file_name: str):
-    """
-    Serve the rendered mp4 from the temp folder so the browser can download it.
-    """
     tmp_dir = Path(gettempdir())
     file_path = tmp_dir / file_name
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
-    # Tell the browser it's an mp4 and suggest a filename
     return FileResponse(
         path=file_path,
         media_type="video/mp4",
