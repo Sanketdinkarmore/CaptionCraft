@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List
+from typing import List, Dict, Any
 import json
 import subprocess
 from pathlib import Path
@@ -13,11 +13,9 @@ router = APIRouter(tags=["render"])
 PLAYRES_X = 1920
 PLAYRES_Y = 1080
 
-
 class Position(BaseModel):
     x: float | None = None
     y: float | None = None
-
 
 class StyledSpan(BaseModel):
     text: str
@@ -27,13 +25,11 @@ class StyledSpan(BaseModel):
     fontSize: float | None = None
     underline: bool | None = False
 
-
 class Segment(BaseModel):
     start: float
     end: float
     content: List[StyledSpan]
     position: Position | None = None
-
 
 def format_time_ass(seconds: float) -> str:
     hours = int(seconds // 3600)
@@ -42,9 +38,7 @@ def format_time_ass(seconds: float) -> str:
     centis = int((seconds % 1) * 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
-
 def hex_to_ass(color: str) -> str:
-    # "#RRGGBB" -> "&HBBGGRR&"
     hex_val = color.lstrip("#")
     if len(hex_val) != 6:
         return "&HFFFFFF&"
@@ -53,8 +47,12 @@ def hex_to_ass(color: str) -> str:
     bb = hex_val[4:6]
     return f"&H{bb}{gg}{rr}&"
 
-
-def build_ass(segments: List[Segment]) -> str:
+def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
+    # Use globalStyle for ASS Style header
+    font_family = global_style.get('fontFamily', 'Arial').split(',')[0].strip().replace(' ', '')
+    font_size = int(global_style.get('fontSize', 48))
+    primary_color = hex_to_ass(global_style.get('color', '#FFFFFF'))
+    
     header = f"""[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
@@ -64,7 +62,7 @@ PlayResY: {PLAYRES_Y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,60,1
+Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,60,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -75,7 +73,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         start = format_time_ass(seg.start)
         end = format_time_ass(seg.end)
 
-        # default center-bottom
+        # Position calculation
         px = (
             seg.position.x * PLAYRES_X
             if seg.position and seg.position.x is not None
@@ -92,12 +90,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         text_parts: list[str] = []
         for span in seg.content:
             tags: list[str] = []
+            
+            # Per-span overrides
             if span.color:
                 tags.append(f"\\c{hex_to_ass(span.color)}")
             if span.fontWeight == "bold":
                 tags.append("\\b1")
             if span.fontFamily:
-                tags.append(f"\\fn{span.fontFamily}")
+                safe_family = span.fontFamily.split(',')[0].strip().replace(' ', '')
+                tags.append(f"\\fn{safe_family}")
             if span.underline:
                 tags.append("\\u1")
             if span.fontSize:
@@ -109,28 +110,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 text_parts.append(span.text)
 
         line_text = line_prefix + "".join(text_parts).replace("\n", "\\N")
-        lines.append(
-            f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line_text}\n"
-        )
+        lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line_text}\n")
 
     return "".join(lines)
-
 
 @router.post("/render")
 async def render_video(
     video: UploadFile = File(...),
     segments: str = Form(...),
+    globalStyle: str = Form(""),  # NEW: Accept globalStyle
 ):
     print("---- /render called ----")
     print("segments length:", len(segments))
 
     try:
-        raw = json.loads(segments)
-        print("parsed segments count:", len(raw))
-        seg_models = [Segment.model_validate(obj) for obj in raw]
+        raw_segments = json.loads(segments)
+        print("parsed segments count:", len(raw_segments))
+        seg_models = [Segment.model_validate(obj) for obj in raw_segments]
+        
+        # Parse globalStyle
+        global_style = {}
+        if globalStyle:
+            global_style = json.loads(globalStyle)
+            print("globalStyle:", global_style)
     except Exception as e:
-        print("JSON / validation error in segments:", repr(e))
-        raise HTTPException(status_code=400, detail="Invalid segments JSON")
+        print("JSON / validation error:", repr(e))
+        raise HTTPException(status_code=400, detail="Invalid JSON data")
 
     tmp_dir = Path(gettempdir())
     uid = uuid.uuid4().hex
@@ -146,10 +151,10 @@ async def render_video(
     with video_path.open("wb") as f:
         f.write(await video.read())
 
-    ass_content = build_ass(seg_models)
+    ass_content = build_ass(seg_models, global_style)
     ass_path.write_text(ass_content, encoding="utf-8")
 
-    # copy .ass into cwd and reference by filename (Windows-safe)
+    # Copy .ass into cwd (Windows-safe)
     cwd = Path(".").resolve()
     ass_target = cwd / ass_path.name
     ass_target.write_text(ass_content, encoding="utf-8")
@@ -160,18 +165,12 @@ async def render_video(
     cmd = [
         "ffmpeg",
         "-y",
-        "-i",
-        str(video_path),
-        "-vf",
-        sub_filter,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "medium",
-        "-crf",
-        "23",
-        "-c:a",
-        "copy",
+        "-i", str(video_path),
+        "-vf", sub_filter,
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "23",
+        "-c:a", "copy",
         str(out_path),
     ]
 
@@ -192,7 +191,6 @@ async def render_video(
 
     print("FFmpeg finished OK")
     return {"file_name": out_path.name}
-
 
 @router.get("/render/download/{file_name}")
 async def download_rendered_video(file_name: str):

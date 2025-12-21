@@ -9,8 +9,6 @@ import {
   type StyledSpan,
 } from "@/lib/apiClient";
 
-
-
 // Make a Segment with content from plain text
 function makeSegmentFromText(
   start: number,
@@ -30,30 +28,18 @@ function segmentToText(seg: Segment): string {
   return seg.content.map((sp) => sp.text).join("");
 }
 
-// FIXED: Split content into word-level spans for styling
+// Ensure word-level spans exist for styling
 function ensureWordSpans(seg: Segment): StyledSpan[] {
   const text = segmentToText(seg);
   const words = text.split(" ");
   
   return words.map((word, i) => {
     const suffix = i < words.length - 1 ? " " : "";
-    // Find if this word already has styling (preserve existing styles)
-    const existingSpan = seg.content.find(span => 
-      span.text.trim() === word.trim()
-    );
-    
-    if (existingSpan && (existingSpan as any).color) {
-      return {
-        ...existingSpan,
-        text: word + suffix
-      } as StyledSpan;
-    }
-    
     return { text: word + suffix } as StyledSpan;
   });
 }
 
-// Split one long segment (rich) into multiple sentence-level segments
+// Split one long segment into sentence-level segments
 function splitSegmentBySentences(seg: Segment): Segment[] {
   const fullText = segmentToText(seg);
   const totalDuration = seg.end - seg.start || 0.001;
@@ -72,7 +58,7 @@ function splitSegmentBySentences(seg: Segment): Segment[] {
 
   const result: Segment[] = [];
   let cursor = seg.start;
-  
+
   for (const sentence of sentences) {
     const ratio = sentence.length / totalChars;
     const dur = totalDuration * ratio;
@@ -131,21 +117,56 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [subtitleStyle, setSubtitleStyle] = useState<{
+  
+  // GLOBAL subtitle style (affects ALL subtitles)
+  const [globalStyle, setGlobalStyle] = useState<{
     fontSize: number;
     color: string;
     background: string;
+    fontFamily: string;
+    preset: string;
   }>({
-    fontSize: 24,
+    fontSize: 36,
     color: "#ffffff",
     background: "rgba(0, 0, 0, 0.6)",
+    fontFamily: "Inter, system-ui, sans-serif",
+    preset: "Classic",
   });
+
+  // Preset definitions
+  const presetStyles = {
+    "Pop Art": {
+      fontSize: 64,
+      color: "#FF00FF",
+      background: "rgba(0, 0, 0, 0.8)",
+      fontFamily: "Impact, system-ui, sans-serif",
+    },
+    "Highlight": {
+      fontSize: 48,
+      color: "#FFD700",
+      background: "rgba(0, 0, 0, 0.7)",
+      fontFamily: "Montserrat, system-ui, sans-serif",
+    },
+    "Neon": {
+      fontSize: 56,
+      color: "#00FFFF",
+      background: "rgba(0, 0, 0, 0.9)",
+      fontFamily: "Roboto, system-ui, sans-serif",
+    },
+    "Classic": {
+      fontSize: 36,
+      color: "#FFFFFF",
+      background: "rgba(0, 0, 0, 0.6)",
+      fontFamily: "Inter, system-ui, sans-serif",
+    },
+  };
 
   const [selectedWord, setSelectedWord] = useState<{
     segmentIndex: number | null;
     wordIndex: number | null;
   }>({ segmentIndex: null, wordIndex: null });
 
+  // Individual word styling (overrides global)
   const [wordStyleDraft, setWordStyleDraft] = useState<{
     color: string;
     fontFamily: string;
@@ -155,20 +176,30 @@ export default function HomePage() {
     color: "#ffd54f",
     fontFamily: "Inter, system-ui, sans-serif",
     bold: true,
-    fontSize: 36,
+    fontSize: 48,
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Apply GLOBAL preset to ALL segments
+  function applyGlobalPreset(presetName: string) {
+    const preset = presetStyles[presetName as keyof typeof presetStyles];
+    if (!preset) return;
+
+    setGlobalStyle({
+      fontSize: preset.fontSize,
+      color: preset.color,
+      background: preset.background,
+      fontFamily: preset.fontFamily,
+      preset: presetName,
+    });
+  }
+
   function handleDownloadSrt() {
     if (!segments.length) return;
-
     const srt = segmentsToSrt(segments);
-    const blob = new Blob([srt], {
-      type: "text/plain;charset=utf-8",
-    });
+    const blob = new Blob([srt], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-
     const a = document.createElement("a");
     a.href = url;
     a.download = "subtitles.srt";
@@ -183,16 +214,8 @@ export default function HomePage() {
       if (!prev.length) return prev;
       const current = prev[index];
       const mid = (current.start + current.end) / 2;
-
-      const firstHalf: Segment = {
-        ...current,
-        end: mid,
-      };
-      const secondHalf: Segment = {
-        ...current,
-        start: mid,
-      };
-
+      const firstHalf: Segment = { ...current, end: mid };
+      const secondHalf: Segment = { ...current, start: mid };
       const copy = [...prev];
       copy.splice(index, 1, firstHalf, secondHalf);
       return copy;
@@ -208,20 +231,14 @@ export default function HomePage() {
     });
   }
 
-  // FIXED: applyWordStyle now ensures word-level spans exist, then styles the right one
-  function applyWordStyle(
-    segmentIndex: number,
-    wordIndex: number
-  ) {
+  function applyWordStyle(segmentIndex: number, wordIndex: number) {
     setSegments((prev) => {
       const copy = [...prev];
       const seg = copy[segmentIndex];
       if (!seg) return prev;
 
-      // Ensure we have word-level spans
       const wordSpans = ensureWordSpans(seg);
       
-      // Apply style to the selected word index
       if (wordSpans[wordIndex]) {
         wordSpans[wordIndex] = {
           ...wordSpans[wordIndex],
@@ -237,15 +254,12 @@ export default function HomePage() {
     });
   }
 
-  async function handleFileChange(
-    e: React.ChangeEvent<HTMLInputElement>
-  ) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
-
     setLoading(true);
     setError(null);
     setSegments([]);
@@ -253,11 +267,9 @@ export default function HomePage() {
 
     try {
       const data = await uploadAndTranscribe(file);
-
       const withContent: Segment[] = data.segments.map((raw) =>
         makeSegmentFromText(raw.start, raw.end, raw.text)
       );
-
       const processed: Segment[] = withContent.flatMap((seg) =>
         splitSegmentBySentences(seg)
       );
@@ -302,13 +314,24 @@ export default function HomePage() {
     (s) => currentTime >= s.start && currentTime < s.end
   );
 
+  // FIXED: Send globalStyle to backend
   async function handleRenderVideo() {
     if (!videoUrl || !segments.length) return;
-    console.log("segments to backend:", JSON.stringify(segments, null, 2));
+    
+    console.log("sending to backend:", JSON.stringify({
+      segments,
+      globalStyle,
+      videoUrl
+    }, null, 2));
+    
     setRendering(true);
     setError(null);
     try {
-      const { file_name } = await renderVideo(segments, videoUrl);
+      const { file_name } = await renderVideo({
+        segments,
+        globalStyle,
+        videoUrl: videoUrl!,
+      });
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
       console.error(err);
@@ -363,6 +386,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen flex">
+      {/* Left panel - subtitles */}
       <section className="w-1/3 border-r p-4 overflow-y-auto">
         <h1 className="font-semibold mb-3">Subtitles</h1>
 
@@ -373,6 +397,7 @@ export default function HomePage() {
           className="mb-4"
         />
 
+        {/* GLOBAL CONTROLS: Presets + Size/Text/Bg */}
         <div className="mb-3 space-y-2">
           <div className="flex gap-2">
             <button
@@ -391,21 +416,40 @@ export default function HomePage() {
             </button>
           </div>
 
+          {/* NEW: Preset Style Buttons */}
+          <div className="flex flex-wrap gap-1">
+            {Object.entries(presetStyles).map(([name]) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => applyGlobalPreset(name)}
+                className={`px-2 py-1 text-[10px] rounded border text-white flex-1 min-w-[60px] ${
+                  globalStyle.preset === name
+                    ? "bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
+                    : "bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+
+          {/* Size/Text/Bg Controls (now using globalStyle) */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <label className="flex items-center gap-1">
               Size
               <input
                 type="number"
                 min={12}
-                max={64}
-                value={subtitleStyle.fontSize}
+                max={128}
+                value={globalStyle.fontSize}
                 onChange={(e) =>
-                  setSubtitleStyle((prev) => ({
+                  setGlobalStyle((prev) => ({
                     ...prev,
-                    fontSize: Number(e.target.value || 24),
+                    fontSize: Number(e.target.value || 36),
                   }))
                 }
-                className="w-14 bg-black border border-gray-700 rounded px-1 py-[2px]"
+                className="w-16 bg-black border border-gray-700 rounded px-1 py-[2px]"
               />
             </label>
 
@@ -413,9 +457,9 @@ export default function HomePage() {
               Text
               <input
                 type="color"
-                value={subtitleStyle.color}
+                value={globalStyle.color}
                 onChange={(e) =>
-                  setSubtitleStyle((prev) => ({
+                  setGlobalStyle((prev) => ({
                     ...prev,
                     color: e.target.value,
                   }))
@@ -428,15 +472,34 @@ export default function HomePage() {
               Bg
               <input
                 type="color"
-                value={"#000000"}
-                onChange={() =>
-                  setSubtitleStyle((prev) => ({
+                value={globalStyle.background.replace("rgba(0,0,0,", "").replace("0.6)", "0.6").slice(0,7)}
+                onChange={(e) =>
+                  setGlobalStyle((prev) => ({
                     ...prev,
-                    background: "rgba(0,0,0,0.6)",
+                    background: `rgba(0,0,0,0.6)`,
                   }))
                 }
                 className="w-8 h-5 p-0 border border-gray-700 rounded"
               />
+            </label>
+
+            <label className="flex items-center gap-1">
+              Font
+              <select
+                value={globalStyle.fontFamily}
+                onChange={(e) =>
+                  setGlobalStyle((prev) => ({
+                    ...prev,
+                    fontFamily: e.target.value,
+                  }))
+                }
+                className="bg-black border border-gray-700 rounded px-1 py-[1px] text-[11px]"
+              >
+                <option value="Inter, system-ui, sans-serif">Inter</option>
+                <option value="Impact, system-ui, sans-serif">Impact</option>
+                <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                <option value="Poppins, system-ui, sans-serif">Poppins</option>
+              </select>
             </label>
           </div>
         </div>
@@ -453,9 +516,7 @@ export default function HomePage() {
 
             const plainText = segmentToText(s);
             const words = plainText.split(" ");
-
-            const isSegmentSelected =
-              selectedWord.segmentIndex === idx;
+            const isSegmentSelected = selectedWord.segmentIndex === idx;
 
             return (
               <div
@@ -499,7 +560,6 @@ export default function HomePage() {
                   />
                 </div>
 
-                {/* Word buttons from plainText.split(" ") - keeps individual word selection */}
                 <div className="flex flex-wrap gap-1 text-[11px] mt-1">
                   {words.map((w, wIdx) => {
                     const isSelected =
@@ -530,84 +590,83 @@ export default function HomePage() {
                   })}
                 </div>
 
-                {isSegmentSelected &&
-                  selectedWord.wordIndex !== null && (
-                    <div className="mt-2 space-y-1 text-[11px]">
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-400">Word style:</span>
-                        <input
-                          type="color"
-                          value={wordStyleDraft.color}
-                          onChange={(e) =>
-                            setWordStyleDraft((prev) => ({
-                              ...prev,
-                              color: e.target.value,
-                            }))
-                          }
-                          className="w-8 h-5 p-0 border border-gray-700 rounded"
-                        />
-                        <select
-                          value={wordStyleDraft.fontFamily}
-                          onChange={(e) =>
-                            setWordStyleDraft((prev) => ({
-                              ...prev,
-                              fontFamily: e.target.value,
-                            }))
-                          }
-                          className="bg-black border border-gray-700 rounded px-1 py-[1px]"
-                        >
-                          <option value="Inter, system-ui, sans-serif">Inter</option>
-                          <option value="Poppins, system-ui, sans-serif">Poppins</option>
-                          <option value="Roboto, system-ui, sans-serif">Roboto</option>
-                          <option value="Impact, system-ui, sans-serif">Impact</option>
-                        </select>
-                        <input
-                          type="number"
-                          min={8}
-                          max={128}
-                          value={wordStyleDraft.fontSize}
-                          onChange={(e) =>
-                            setWordStyleDraft((prev) => ({
-                              ...prev,
-                              fontSize: Number(e.target.value || 36),
-                            }))
-                          }
-                          className="w-12 bg-black border border-gray-700 rounded px-1 py-[1px]"
-                        />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setWordStyleDraft((prev) => ({
-                              ...prev,
-                              bold: !prev.bold,
-                            }));
-                          }}
-                          className={
-                            "px-2 py-[1px] rounded border " +
-                            (wordStyleDraft.bold
-                              ? "border-yellow-400 text-yellow-300"
-                              : "border-gray-600 text-gray-300")
-                          }
-                        >
-                          B
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            applyWordStyle(
-                              selectedWord.segmentIndex!,
-                              selectedWord.wordIndex!
-                            );
-                          }}
-                          className="px-2 py-[1px] rounded border border-blue-500 text-blue-300"
-                        >
-                          Apply
-                        </button>
-                      </div>
+                {isSegmentSelected && selectedWord.wordIndex !== null && (
+                  <div className="mt-2 space-y-1 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">Word:</span>
+                      <input
+                        type="color"
+                        value={wordStyleDraft.color}
+                        onChange={(e) =>
+                          setWordStyleDraft((prev) => ({
+                            ...prev,
+                            color: e.target.value,
+                          }))
+                        }
+                        className="w-8 h-5 p-0 border border-gray-700 rounded"
+                      />
+                      <select
+                        value={wordStyleDraft.fontFamily}
+                        onChange={(e) =>
+                          setWordStyleDraft((prev) => ({
+                            ...prev,
+                            fontFamily: e.target.value,
+                          }))
+                        }
+                        className="bg-black border border-gray-700 rounded px-1 py-[1px]"
+                      >
+                        <option value="Inter, system-ui, sans-serif">Inter</option>
+                        <option value="Poppins, system-ui, sans-serif">Poppins</option>
+                        <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                        <option value="Impact, system-ui, sans-serif">Impact</option>
+                      </select>
+                      <input
+                        type="number"
+                        min={8}
+                        max={128}
+                        value={wordStyleDraft.fontSize}
+                        onChange={(e) =>
+                          setWordStyleDraft((prev) => ({
+                            ...prev,
+                            fontSize: Number(e.target.value || 36),
+                          }))
+                        }
+                        className="w-12 bg-black border border-gray-700 rounded px-1 py-[1px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWordStyleDraft((prev) => ({
+                            ...prev,
+                            bold: !prev.bold,
+                          }));
+                        }}
+                        className={
+                          "px-2 py-[1px] rounded border " +
+                          (wordStyleDraft.bold
+                            ? "border-yellow-400 text-yellow-300"
+                            : "border-gray-600 text-gray-300")
+                        }
+                      >
+                        B
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          applyWordStyle(
+                            selectedWord.segmentIndex!,
+                            selectedWord.wordIndex!
+                          );
+                        }}
+                        className="px-2 py-[1px] rounded border border-blue-500 text-blue-300"
+                      >
+                        Apply
+                      </button>
                     </div>
-                  )}
+                  </div>
+                )}
 
                 <div className="text-[11px] text-gray-500 flex items-center justify-between mt-2">
                   <span>
@@ -663,8 +722,9 @@ export default function HomePage() {
                 {...makePositionHandlers(segments.indexOf(activeSegment))}
                 className="pointer-events-auto absolute px-4 py-2 rounded max-w-[90%] text-center cursor-move"
                 style={{
-                  fontSize: `${subtitleStyle.fontSize}px`,
-                  background: subtitleStyle.background,
+                  fontSize: `${globalStyle.fontSize}px`,
+                  background: globalStyle.background,
+                  fontFamily: globalStyle.fontFamily,
                   left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
                   top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
                   transform: "translate(-50%, -50%)",
@@ -674,11 +734,12 @@ export default function HomePage() {
                   <span
                     key={i}
                     style={{
-                      color: span.color ?? subtitleStyle.color,
+                      color: span.color ?? globalStyle.color,
                       fontWeight: span.fontWeight ?? "normal",
-                      textDecoration: span.underline ? "underline" : "none",
-                      fontFamily: (span as any).fontFamily ?? "Inter, system-ui, sans-serif",
-                      fontSize: span.fontSize ?? subtitleStyle.fontSize,
+                      fontFamily:
+                        (span as any).fontFamily ?? globalStyle.fontFamily,
+                      fontSize:
+                        (span as any).fontSize ?? globalStyle.fontSize,
                     }}
                   >
                     {span.text}
