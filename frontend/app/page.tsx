@@ -117,6 +117,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [presetsOpen, setPresetsOpen] = useState(false);
   
   // GLOBAL subtitle style (affects ALL subtitles)
   const [globalStyle, setGlobalStyle] = useState<{
@@ -159,6 +160,12 @@ export default function HomePage() {
       background: "rgba(0, 0, 0, 0.6)",
       fontFamily: "Inter, system-ui, sans-serif",
     },
+    "Minimal": {
+      fontSize: 40,
+      color: "#E0E0E0",
+      background: "rgba(0, 0, 0, 0.4)",
+      fontFamily: "Poppins, system-ui, sans-serif",
+    },
   };
 
   const [selectedWord, setSelectedWord] = useState<{
@@ -193,6 +200,8 @@ export default function HomePage() {
       fontFamily: preset.fontFamily,
       preset: presetName,
     });
+    
+    setPresetsOpen(false);
   }
 
   function handleDownloadSrt() {
@@ -416,22 +425,37 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* NEW: Preset Style Buttons */}
-          <div className="flex flex-wrap gap-1">
-            {Object.entries(presetStyles).map(([name]) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => applyGlobalPreset(name)}
-                className={`px-2 py-1 text-[10px] rounded border text-white flex-1 min-w-[60px] ${
-                  globalStyle.preset === name
-                    ? "bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg"
-                    : "bg-gradient-to-r from-gray-700 to-gray-800 hover:from-gray-600 hover:to-gray-700"
-                }`}
-              >
-                {name}
-              </button>
-            ))}
+          {/* DROPDOWN: Preset Style Selection */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPresetsOpen(!presetsOpen)}
+              className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-xs flex items-center justify-between hover:bg-gray-900"
+            >
+              <span>Presets</span>
+              <span className={`transition-transform ${presetsOpen ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </button>
+
+            {presetsOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-black border border-gray-600 rounded shadow-lg z-10">
+                {Object.entries(presetStyles).map(([name]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => applyGlobalPreset(name)}
+                    className={`w-full px-3 py-2 text-xs text-left rounded-none border-b border-gray-700 last:border-b-0 ${
+                      globalStyle.preset === name
+                        ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white"
+                        : "bg-black text-white hover:bg-gray-900"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Size/Text/Bg Controls (now using globalStyle) */}
