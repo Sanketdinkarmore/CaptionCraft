@@ -177,13 +177,14 @@ async def render_video(
     ass_target = cwd / ass_path.name
     ass_target.write_text(ass_content, encoding="utf-8")
 
-    fonts_dir=(cwd/ "fonts").resolve()
-    print("fonts_dir:",fonts_dir)
+    # fonts_dir=(cwd/ "fonts").resolve()
+    # fonts_dir_str = fonts_dir.as_posix()
+    # print("fonts_dir_str:",fonts_dir_str)
+
+    ass_name_escaped = ass_target.name.replace(":", "\\:")
 
 
-
-
-    sub_filter = f"subtitles={ass_target.name}:fontsdir={fonts_dir}"
+    sub_filter = f"subtitles={ass_name_escaped}"
     print("ffmpeg subtitles filter:", sub_filter)
 
     cmd = [

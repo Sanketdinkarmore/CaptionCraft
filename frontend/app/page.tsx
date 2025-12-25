@@ -142,31 +142,25 @@ export default function HomePage() {
       fontSize: 64,
       color: "#FF00FF",
       background: "rgba(0, 0, 0, 0.8)",
-      fontFamily: "Impact, system-ui, sans-serif",
+      fontFamily: "Inter, system-ui, sans-serif",
     },
     "Highlight": {
       fontSize: 48,
       color: "#FFD700",
       background: "rgba(0, 0, 0, 0.7)",
-      fontFamily: "Montserrat, system-ui, sans-serif",
+      fontFamily: "Poppins, system-ui, sans-serif",
     },
     "Neon": {
-      fontSize: 56,
+      fontSize: 80,
       color: "#00FFFF",
       background: "rgba(0, 0, 0, 0.9)",
-      fontFamily: "Roboto, system-ui, sans-serif",
+      fontFamily: "Impact, system-ui, sans-serif",
     },
     "Classic": {
       fontSize: 36,
       color: "#FFFFFF",
       background: "rgba(0, 0, 0, 0.6)",
       fontFamily: "Inter, system-ui, sans-serif",
-    },
-    "Minimal": {
-      fontSize: 40,
-      color: "#E0E0E0",
-      background: "rgba(0, 0, 0, 0.4)",
-      fontFamily: "Poppins, system-ui, sans-serif",
     },
   };
 
