@@ -137,32 +137,140 @@ export default function HomePage() {
   });
 
   // Preset definitions
+  // const presetStyles = {
+  //   "Pop Art": {
+  //     fontSize: 64,
+  //     color: "#FF00FF",
+  //     background: "rgba(0, 0, 0, 0.8)",
+  //     fontFamily: "Inter, system-ui, sans-serif",
+  //   },
+  //   "Highlight": {
+  //     fontSize: 48,
+  //     color: "#FFD700",
+  //     background: "rgba(0, 0, 0, 0.7)",
+  //     fontFamily: "Poppins, system-ui, sans-serif",
+  //   },
+  //   "Neon": {
+  //     fontSize: 80,
+  //     color: "#00FFFF",
+  //     background: "rgba(0, 0, 0, 0.9)",
+  //     fontFamily: "Impact, system-ui, sans-serif",
+  //   },
+  //   "Classic": {
+  //     fontSize: 36,
+  //     color: "#FFFFFF",
+  //     background: "rgba(0, 0, 0, 0.6)",
+  //     fontFamily: "Inter, system-ui, sans-serif",
+  //   },
+  // };
+
   const presetStyles = {
-    "Pop Art": {
-      fontSize: 64,
-      color: "#FF00FF",
-      background: "rgba(0, 0, 0, 0.8)",
-      fontFamily: "Inter, system-ui, sans-serif",
-    },
-    "Highlight": {
-      fontSize: 48,
-      color: "#FFD700",
-      background: "rgba(0, 0, 0, 0.7)",
-      fontFamily: "Poppins, system-ui, sans-serif",
-    },
-    "Neon": {
-      fontSize: 80,
-      color: "#00FFFF",
-      background: "rgba(0, 0, 0, 0.9)",
-      fontFamily: "Impact, system-ui, sans-serif",
-    },
-    "Classic": {
-      fontSize: 36,
-      color: "#FFFFFF",
-      background: "rgba(0, 0, 0, 0.6)",
-      fontFamily: "Inter, system-ui, sans-serif",
-    },
-  };
+  "Cinematic": {
+    fontSize: 42,
+    color: "#FFFFFF",
+    background: "rgba(0, 0, 0, 0.85)",
+    fontFamily: "Montserrat, system-ui, sans-serif",
+  },
+
+  "YouTube Bold": {
+    fontSize: 60,
+    color: "#FFFFFF",
+    background: "#FF0000",
+    fontFamily: "Poppins, system-ui, sans-serif",
+  },
+
+  "Reels Clean": {
+    fontSize: 52,
+    color: "#FFFFFF",
+    background: "rgba(0, 0, 0, 0.55)",
+    fontFamily: "Inter, system-ui, sans-serif",
+  },
+
+  "Podcast Minimal": {
+    fontSize: 34,
+    color: "#E5E5E5",
+    background: "rgba(20, 20, 20, 0.7)",
+    fontFamily: "Roboto, system-ui, sans-serif",
+  },
+
+  "Hinglish Punch": {
+    fontSize: 58,
+    color: "#00FF99",
+    background: "rgba(0, 0, 0, 0.85)",
+    fontFamily: "Poppins, system-ui, sans-serif",
+  },
+
+  "Neon Glow Pink": {
+    fontSize: 72,
+    color: "#FF4DFF",
+    background: "rgba(0, 0, 0, 0.9)",
+    fontFamily: "Orbitron, system-ui, sans-serif",
+  },
+
+  "Neon Green": {
+    fontSize: 68,
+    color: "#39FF14",
+    background: "rgba(0, 0, 0, 0.85)",
+    fontFamily: "Impact, system-ui, sans-serif",
+  },
+
+  "Soft Pastel": {
+    fontSize: 44,
+    color: "#2C2C2C",
+    background: "rgba(255, 200, 221, 0.9)",
+    fontFamily: "Nunito, system-ui, sans-serif",
+  },
+
+  "Dark Mode Pro": {
+    fontSize: 40,
+    color: "#F1F1F1",
+    background: "rgba(15, 15, 15, 0.9)",
+    fontFamily: "Inter, system-ui, sans-serif",
+  },
+
+  "Bold Yellow": {
+    fontSize: 62,
+    color: "#000000",
+    background: "#FFD700",
+    fontFamily: "Poppins, system-ui, sans-serif",
+  },
+
+  "Instagram Story": {
+    fontSize: 56,
+    color: "#FFFFFF",
+    background: "linear-gradient(90deg, #833AB4, #FD1D1D, #FCB045)",
+    fontFamily: "Poppins, system-ui, sans-serif",
+  },
+
+  "Retro VHS": {
+    fontSize: 50,
+    color: "#00FFD1",
+    background: "rgba(0, 0, 0, 0.75)",
+    fontFamily: "Courier Prime, monospace",
+  },
+
+  "Luxury Serif": {
+    fontSize: 38,
+    color: "#F5F5F5",
+    background: "rgba(0, 0, 0, 0.6)",
+    fontFamily: "Playfair Display, serif",
+  },
+
+  "Gaming HUD": {
+    fontSize: 48,
+    color: "#00E5FF",
+    background: "rgba(10, 10, 10, 0.85)",
+    fontFamily: "Orbitron, system-ui, sans-serif",
+  },
+
+  "Minimal White": {
+    fontSize: 32,
+    color: "#000000",
+    background: "rgba(255, 255, 255, 0.85)",
+    fontFamily: "Inter, system-ui, sans-serif",
+  },
+};
+
 
   const [selectedWord, setSelectedWord] = useState<{
     segmentIndex: number | null;
@@ -175,11 +283,13 @@ export default function HomePage() {
     fontFamily: string;
     bold: boolean;
     fontSize: number;
+    background: string;
   }>({
     color: "#ffd54f",
     fontFamily: "Inter, system-ui, sans-serif",
     bold: true,
     fontSize: 48,
+    background: "#FF0000",
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -251,6 +361,7 @@ export default function HomePage() {
           fontFamily: wordStyleDraft.fontFamily,
           fontWeight: wordStyleDraft.bold ? "bold" : "normal",
           fontSize: wordStyleDraft.fontSize,
+          background: wordStyleDraft.background,
         } as StyledSpan;
       }
 
@@ -496,7 +607,7 @@ export default function HomePage() {
                 onChange={(e) =>
                   setGlobalStyle((prev) => ({
                     ...prev,
-                    background: `rgba(0,0,0,0.6)`,
+                    background: e.target.value,
                   }))
                 }
                 className="w-8 h-5 p-0 border border-gray-700 rounded"
@@ -624,6 +735,18 @@ export default function HomePage() {
                           }))
                         }
                         className="w-8 h-5 p-0 border border-gray-700 rounded"
+                      />
+                      <input
+                       type="color"
+                       value={wordStyleDraft.background || "#000000"}
+                       onChange={(e) =>
+                       setWordStyleDraft((prev) => ({
+                        ...prev,
+                        background: e.target.value,
+                       }))
+                       }
+                      className="w-8 h-5 p-0 border border-gray-700 rounded"
+                      title="Word Background"
                       />
                       <select
                         value={wordStyleDraft.fontFamily}
@@ -760,6 +883,12 @@ export default function HomePage() {
                         (span as any).fontFamily ?? globalStyle.fontFamily,
                       fontSize:
                         (span as any).fontSize ?? globalStyle.fontSize,
+                      background: 
+                        (span as any).background ?? globalStyle.background,
+                      padding: "2px 4px",
+                      margin: "0 1px",
+                      borderRadius: "2px",
+
                     }}
                   >
                     {span.text}

@@ -8,6 +8,7 @@ export type StyledSpan = {
   underline?: boolean;
   fontFamily?: string;
   fontSize?: number;
+  background?: string;
 };
 
 export type Segment = {

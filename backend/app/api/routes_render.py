@@ -58,6 +58,16 @@ def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
     font_family = global_style.get("fontFamily", "Arial").split(",")[0].strip().replace(" ", "")
     font_size = int(global_style.get("fontSize", 48))
     primary_color = hex_to_ass(global_style.get("color", "#FFFFFF"))
+    bg_color = global_style.get("background", "rgba(0,0,0,0.6)")
+    if bg_color.startswith("rgba("):
+        # Extract hex from rgba(0,0,0,0.6) -> approximate #000000
+        hex_bg = "#000000"  # fallback for rgba black
+    else:
+        hex_bg = bg_color.lstrip("#")
+        if len(hex_bg) != 6:
+            hex_bg = "000000"
+    back_color = f"&H{hex_bg[4:6]}{hex_bg[2:4]}{hex_bg[0:2]}&" 
+
 
     header = f"""[Script Info]
 Title: Generated Subtitles
@@ -68,7 +78,7 @@ PlayResY: {PLAYRES_Y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,2,2,10,10,60,1
+Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,{back_color},0,0,0,0,100,100,0,0,1,2,2,2,10,10,60,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -120,6 +130,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 tags.append("\\b1")
             if span.underline:
                 tags.append("\\u1")
+
+            # PER-WORD BACKGROUND - NOW WORKING!
+            span_bg = getattr(span, 'background', None)  # Pydantic-safe
+            if span_bg:
+                span_hex_bg = span_bg.lstrip("#") if span_bg.startswith("#") else "000000"
+                if len(span_hex_bg) != 6:
+                    span_hex_bg = "000000"
+                span_back_color = f"&H{span_hex_bg[4:6]}{span_hex_bg[2:4]}{span_hex_bg[0:2]}&"
+                tags.append(f"\\3c{span_back_color}")  # Background color
+                tags.append("\\bord0")  # Clean background, no outline
 
             if tags:
                 text_parts.append("{" + "".join(tags) + "}" + span.text)
