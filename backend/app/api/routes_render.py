@@ -7,17 +7,16 @@ import subprocess
 from pathlib import Path
 import uuid
 from tempfile import gettempdir
+import os
 
 router = APIRouter(tags=["render"])
 
 PLAYRES_X = 1920
 PLAYRES_Y = 1080
 
-
 class Position(BaseModel):
     x: float | None = None
     y: float | None = None
-
 
 class StyledSpan(BaseModel):
     text: str
@@ -26,14 +25,13 @@ class StyledSpan(BaseModel):
     fontFamily: str | None = None
     fontSize: float | None = None
     underline: bool | None = False
-
+    background: str | None = None
 
 class Segment(BaseModel):
     start: float
     end: float
     content: List[StyledSpan]
     position: Position | None = None
-
 
 def format_time_ass(seconds: float) -> str:
     hours = int(seconds // 3600)
@@ -42,44 +40,31 @@ def format_time_ass(seconds: float) -> str:
     centis = int((seconds % 1) * 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
-
 def hex_to_ass(color: str) -> str:
     hex_val = color.lstrip("#")
     if len(hex_val) != 6:
         return "&HFFFFFF&"
-    rr = hex_val[0:2]
-    gg = hex_val[2:4]
-    bb = hex_val[4:6]
+    rr, gg, bb = hex_val[0:2], hex_val[2:4], hex_val[4:6]
     return f"&H{bb}{gg}{rr}&"
 
-
 def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
-    # Global defaults for ASS style header
     font_family = global_style.get("fontFamily", "Arial").split(",")[0].strip().replace(" ", "")
     font_size = int(global_style.get("fontSize", 48))
     primary_color = hex_to_ass(global_style.get("color", "#FFFFFF"))
-    bg_color = global_style.get("background", "rgba(0,0,0,0.6)")
-    if bg_color.startswith("rgba("):
-        # Extract hex from rgba(0,0,0,0.6) -> approximate #000000
-        hex_bg = "#000000"  # fallback for rgba black
-    else:
-        hex_bg = bg_color.lstrip("#")
-        if len(hex_bg) != 6:
-            hex_bg = "000000"
-    back_color = f"&H{hex_bg[4:6]}{hex_bg[2:4]}{hex_bg[0:2]}&" 
-
-
+    
     header = f"""[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
-Collisions: Normal
 PlayResX: {PLAYRES_X}
 PlayResY: {PLAYRES_Y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,{back_color},0,0,0,0,100,100,0,0,1,2,2,2,10,10,60,1
-
+Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,1,1.8,2,10,10,60,1
+"""
+    # Note: Shadow set to 1.5 in global style for better readability.
+    
+    header += """
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -89,68 +74,45 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         start = format_time_ass(seg.start)
         end = format_time_ass(seg.end)
 
-        # Position calculation
-        px = (
-            seg.position.x * PLAYRES_X
-            if seg.position and seg.position.x is not None
-            else 0.5 * PLAYRES_X
-        )
-        py = (
-            seg.position.y * PLAYRES_Y
-            if seg.position and seg.position.y is not None
-            else 0.9 * PLAYRES_Y
-        )
+        px = int(seg.position.x * PLAYRES_X if seg.position and seg.position.x is not None else 0.5 * PLAYRES_X)
+        py = int(seg.position.y * PLAYRES_Y if seg.position and seg.position.y is not None else 0.9 * PLAYRES_Y)
 
-        line_prefix = f"{{\\pos({int(px)},{int(py)})}}"
+        # Apply global position and a soft blur (\be1) to the shadow for a cleaner look
+        line_text = f"{{\\pos({px},{py})\\be1}}"
 
-        text_parts: list[str] = []
         for span in seg.content:
-            tags: list[str] = []
+            tags = []
+            
+            # 1. Base Styling
+            current_color = span.color or global_style.get("color")
+            if current_color:
+                tags.append(f"\\c{hex_to_ass(current_color)}")
+            
+            if span.fontSize:
+                tags.append(f"\\fs{int(span.fontSize)}")
 
-            # Merge span overrides with global_style defaults
-            span_color = span.color or global_style.get("color")
-            span_font_size = span.fontSize or global_style.get("fontSize")
-            span_font_family = span.fontFamily or global_style.get("fontFamily")
-
-            # Color (from span or global)
-            if span_color:
-                tags.append(f"\\c{hex_to_ass(span_color)}")
-
-            # Font size (from span or global)
-            if span_font_size:
-                tags.append(f"\\fs{int(span_font_size)}")
-
-            # Font family (from span or global)
-            if span_font_family:
-                safe_family = span_font_family.split(",")[0].strip().replace(" ", "")
-                tags.append(f"\\fn{safe_family}")
-
-            # Bold / underline only from span
-            if span.fontWeight == "bold":
-                tags.append("\\b1")
-            if span.underline:
-                tags.append("\\u1")
-
-            # PER-WORD BACKGROUND - NOW WORKING!
-            span_bg = getattr(span, 'background', None)  # Pydantic-safe
-            if span_bg:
-                span_hex_bg = span_bg.lstrip("#") if span_bg.startswith("#") else "000000"
-                if len(span_hex_bg) != 6:
-                    span_hex_bg = "000000"
-                span_back_color = f"&H{span_hex_bg[4:6]}{span_hex_bg[2:4]}{span_hex_bg[0:2]}&"
-                tags.append(f"\\3c{span_back_color}")  # Background color
-                tags.append("\\bord0")  # Clean background, no outline
-
-            if tags:
-                text_parts.append("{" + "".join(tags) + "}" + span.text)
+            # 2. Glow Logic (The "Box" around styled words)
+            if span.background:
+                glow_color = hex_to_ass(span.background)
+                tags.append(f"\\3c{glow_color}") 
+                tags.append("\\bord4")  # Thick border for glow effect
             else:
-                text_parts.append(span.text)
+                # RESET to thin black outline for normal words
+                tags.append("\\3c&H000000&")
+                tags.append("\\bord2")
 
-        line_text = line_prefix + "".join(text_parts).replace("\n", "\\N")
+            # 3. Readability Shadow (Forces a small shadow even on styled words)
+            tags.append("\\shad1.5") 
+
+            # 4. Font Weight & Underline
+            tags.append(f"\\b{1 if span.fontWeight == 'bold' else 0}")
+            tags.append(f"\\u{1 if span.underline else 0}")
+
+            line_text += "{" + "".join(tags) + "}" + span.text
+
         lines.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{line_text}\n")
 
     return "".join(lines)
-
 
 @router.post("/render")
 async def render_video(
@@ -158,102 +120,41 @@ async def render_video(
     segments: str = Form(...),
     globalStyle: str = Form(""),
 ):
-    print("---- /render called ----")
-    print("segments length:", len(segments))
-
     try:
-        raw_segments = json.loads(segments)
-        print("parsed segments count:", len(raw_segments))
-        seg_models = [Segment.model_validate(obj) for obj in raw_segments]
-
-        # Parse globalStyle
-        global_style: Dict[str, Any] = {}
-        if globalStyle:
-            global_style = json.loads(globalStyle)
-            print("globalStyle:", global_style)
+        raw_segs = json.loads(segments)
+        seg_models = [Segment.model_validate(obj) for obj in raw_segs]
+        g_style = json.loads(globalStyle) if globalStyle else {}
     except Exception as e:
-        print("JSON / validation error:", repr(e))
-        raise HTTPException(status_code=400, detail="Invalid JSON data")
+        raise HTTPException(status_code=400, detail=f"Data error: {str(e)}")
 
-    tmp_dir = Path(gettempdir())
-    uid = uuid.uuid4().hex
+    tmp = Path(gettempdir())
+    session_id = uuid.uuid4().hex
+    v_in = tmp / f"in_{session_id}.mp4"
+    v_out = tmp / f"out_{session_id}.mp4"
+    ass_file = Path(".").resolve() / f"subs_{session_id}.ass"
 
-    video_path = tmp_dir / f"src_{uid}.mp4"
-    ass_path = tmp_dir / f"subs_{uid}.ass"
-    out_path = tmp_dir / f"out_{uid}.mp4"
-
-    print("video_path:", video_path)
-    print("ass_path:", ass_path)
-    print("out_path:", out_path)
-
-    with video_path.open("wb") as f:
+    with v_in.open("wb") as f:
         f.write(await video.read())
 
-    ass_content = build_ass(seg_models, global_style)
-    ass_path.write_text(ass_content, encoding="utf-8")
-
-    # Copy .ass into cwd (Windows-safe)
-    cwd = Path(".").resolve()
-    ass_target = cwd / ass_path.name
-    ass_target.write_text(ass_content, encoding="utf-8")
-
-    # fonts_dir=(cwd/ "fonts").resolve()
-    # fonts_dir_str = fonts_dir.as_posix()
-    # print("fonts_dir_str:",fonts_dir_str)
-
-    ass_name_escaped = ass_target.name.replace(":", "\\:")
-
-
-    sub_filter = f"subtitles={ass_name_escaped}"
-    print("ffmpeg subtitles filter:", sub_filter)
+    ass_file.write_text(build_ass(seg_models, g_style), encoding="utf-8")
 
     cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        str(video_path),
-        "-vf",
-        sub_filter,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "medium",
-        "-crf",
-        "23",
-        "-c:a",
-        "copy",
-        str(out_path),
+        "ffmpeg", "-y", "-i", str(v_in),
+        "-vf", f"subtitles='{ass_file.name}'",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+        "-c:a", "copy", str(v_out)
     ]
 
-    print("ffmpeg cmd:", " ".join(cmd))
-
     try:
-        subprocess.run(
-            cmd,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except subprocess.CalledProcessError as e:
-        print("FFmpeg FAILED, stderr:")
-        print(e.stderr)
-        raise HTTPException(status_code=500, detail="FFmpeg render failed")
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    finally:
+        if ass_file.exists(): os.remove(ass_file)
+        # Cleanup of input video is optional, but helps save space
+        if v_in.exists(): os.remove(v_in)
 
-    print("FFmpeg finished OK")
-    return {"file_name": out_path.name}
-
+    return {"file_name": v_out.name}
 
 @router.get("/render/download/{file_name}")
-async def download_rendered_video(file_name: str):
-    tmp_dir = Path(gettempdir())
-    file_path = tmp_dir / file_name
-
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-
-    return FileResponse(
-        path=file_path,
-        media_type="video/mp4",
-        filename=file_name,
-    )
+async def download(file_name: str):
+    path = Path(gettempdir()) / file_name
+    return FileResponse(path, media_type="video/mp4", filename="rendered_video.mp4")
