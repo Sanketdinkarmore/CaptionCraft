@@ -1,10 +1,5 @@
 "use client";
 
-
-
-
-
-
 import { useState, useRef, useEffect } from "react";
 import {
   uploadAndTranscribe,
@@ -630,9 +625,13 @@ export default function HomePage() {
                 className="bg-black border border-gray-700 rounded px-1 py-[1px] text-[11px]"
               >
                 <option value="Inter, system-ui, sans-serif">Inter</option>
-                <option value="Impact, system-ui, sans-serif">Impact</option>
-                <option value="Roboto, system-ui, sans-serif">Roboto</option>
                 <option value="Poppins, system-ui, sans-serif">Poppins</option>
+                <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
+                <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
+                <option value="Courier Prime, monospace">Courier Prime</option>
+                <option value="Playfair Display, serif">Playfair Display</option>
+                <option value="Impact, system-ui, sans-serif">Impact</option>
               </select>
             </label>
           </div>
@@ -764,6 +763,10 @@ export default function HomePage() {
                         <option value="Inter, system-ui, sans-serif">Inter</option>
                         <option value="Poppins, system-ui, sans-serif">Poppins</option>
                         <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                        <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
+                        <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
+                        <option value="Courier Prime, monospace">Courier Prime</option>
+                        <option value="Playfair Display, serif">Playfair Display</option>
                         <option value="Impact, system-ui, sans-serif">Impact</option>
                       </select>
                       <input

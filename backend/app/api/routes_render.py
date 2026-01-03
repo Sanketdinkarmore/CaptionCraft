@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import subprocess
 from pathlib import Path
@@ -9,10 +9,114 @@ import uuid
 from tempfile import gettempdir
 import os
 
+try:
+    from fontTools.ttLib import TTFont
+    FONTTOOLS_AVAILABLE = True
+except ImportError:
+    FONTTOOLS_AVAILABLE = False
+
 router = APIRouter(tags=["render"])
 
 PLAYRES_X = 1920
 PLAYRES_Y = 1080
+
+# Path to bundled fonts directory
+FONTS_DIR = Path(__file__).parent.parent / "fonts"
+
+# Cache for font name mappings (filename -> actual font name)
+_font_name_cache: Dict[str, str] = {}
+
+def get_font_name_from_file(font_path: Path) -> str:
+    """
+    Extract the actual font name from a TTF file.
+    Returns the font name that FFmpeg will recognize.
+    """
+    if font_path.name in _font_name_cache:
+        return _font_name_cache[font_path.name]
+    
+    font_name = font_path.stem  # Default to filename without extension
+    
+    if FONTTOOLS_AVAILABLE:
+        try:
+            font = TTFont(str(font_path))
+            name_table = font.get("name")
+            
+            # Try to get the preferred font name (nameID 4 = Full font name)
+            # Also try nameID 6 = PostScript name, nameID 1 = Family name
+            for name_id in [4, 6, 1]:
+                for record in name_table.names:
+                    if record.nameID == name_id and record.isUnicode():
+                        font_name = record.toUnicode()
+                        break
+                if font_name != font_path.stem:
+                    break
+        except Exception as e:
+            print(f"Warning: Could not extract font name from {font_path.name}: {e}")
+    
+    _font_name_cache[font_path.name] = font_name
+    return font_name
+
+def build_font_map() -> Dict[str, str]:
+    """
+    Build a mapping from frontend font family names to actual font names.
+    Scans the fonts directory and maps common names to TTF files.
+    """
+    font_map: Dict[str, str] = {}
+    
+    if not FONTS_DIR.exists():
+        print(f"Warning: Fonts directory not found: {FONTS_DIR}")
+        return font_map
+    
+    # Map common frontend names to font files
+    name_to_file = {
+        "Inter": "Inter_24pt-Regular.ttf",
+        "Poppins": "Poppins-Regular.ttf",
+        "Roboto": "Roboto_Condensed-Regular.ttf",
+        "RobotoCondensed": "Roboto_Condensed-Regular.ttf",
+        "Montserrat": "Montserrat-Regular.ttf",
+        "Orbitron": "Orbitron-Regular.ttf",
+        "CourierPrime": "CourierPrime-Regular.ttf",
+        "Courier Prime": "CourierPrime-Regular.ttf",
+        "PlayfairDisplay": "PlayfairDisplay-Regular.ttf",
+        "Playfair Display": "PlayfairDisplay-Regular.ttf",
+    }
+    
+    for frontend_name, filename in name_to_file.items():
+        font_path = FONTS_DIR / filename
+        if font_path.exists():
+            actual_name = get_font_name_from_file(font_path)
+            font_map[frontend_name] = actual_name
+        else:
+            print(f"Warning: Font file not found: {filename}")
+    
+    # System fonts that don't need files
+    font_map["Arial"] = "Arial"
+    font_map["Impact"] = "Impact"
+    
+    return font_map
+
+# Initialize font map
+FONT_MAP = build_font_map()
+
+def get_font_name(font_family: str) -> str:
+    """
+    Maps frontend font family name to the actual font name that FFmpeg can find.
+    Returns the font name to use in ASS file.
+    """
+    # Extract base font name (remove fallbacks like "Inter, system-ui, sans-serif")
+    base_name = font_family.split(",")[0].strip()
+    
+    # Check if we have a bundled font for this
+    if base_name in FONT_MAP:
+        return FONT_MAP[base_name]
+    
+    # Fallback: try to clean the name and check again
+    cleaned_name = base_name.replace(" ", "")
+    if cleaned_name in FONT_MAP:
+        return FONT_MAP[cleaned_name]
+    
+    # Final fallback: return the original name (might be a system font)
+    return base_name.replace(" ", "")
 
 class Position(BaseModel):
     x: float | None = None
@@ -48,7 +152,8 @@ def hex_to_ass(color: str) -> str:
     return f"&H{bb}{gg}{rr}&"
 
 def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
-    font_family = global_style.get("fontFamily", "Arial").split(",")[0].strip().replace(" ", "")
+    # Use the font mapping function to get the correct font name
+    font_family = get_font_name(global_style.get("fontFamily", "Arial"))
     font_size = int(global_style.get("fontSize", 48))
     primary_color = hex_to_ass(global_style.get("color", "#FFFFFF"))
     
@@ -87,6 +192,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             current_color = span.color or global_style.get("color")
             if current_color:
                 tags.append(f"\\c{hex_to_ass(current_color)}")
+            
+            # Font family override for individual spans (using \fn tag)
+            if span.fontFamily:
+                span_font_name = get_font_name(span.fontFamily)
+                tags.append(f"\\fn{span_font_name}")
             
             if span.fontSize:
                 tags.append(f"\\fs{int(span.fontSize)}")
@@ -131,26 +241,96 @@ async def render_video(
     session_id = uuid.uuid4().hex
     v_in = tmp / f"in_{session_id}.mp4"
     v_out = tmp / f"out_{session_id}.mp4"
-    ass_file = Path(".").resolve() / f"subs_{session_id}.ass"
+    ass_file = tmp / f"subs_{session_id}.ass"
+    
+    # Create a temporary fonts directory to avoid Windows path issues with colons
+    tmp_fonts_dir = tmp / f"fonts_{session_id}"
+    tmp_fonts_dir.mkdir(exist_ok=True)
 
     with v_in.open("wb") as f:
         f.write(await video.read())
 
     ass_file.write_text(build_ass(seg_models, g_style), encoding="utf-8")
 
+    # IMPORTANT: The 'fontsdir' parameter doesn't exist in FFmpeg's subtitles filter!
+    # Instead, we need to:
+    # 1. Copy fonts to the same directory as the ASS file (libass looks there)
+    # 2. Use fontconfig environment variables
+    # 3. Or rely on system fonts
+    
+    import shutil
+    ass_file_dir = ass_file.parent
+    
+    # Copy bundled fonts to the same directory as the ASS file
+    # libass (used by FFmpeg subtitles filter) will look for fonts in the ASS file's directory
+    if FONTS_DIR.exists():
+        for font_file in FONTS_DIR.glob("*.ttf"):
+            try:
+                shutil.copy2(font_file, ass_file_dir / font_file.name)
+            except Exception as e:
+                print(f"Warning: Could not copy font {font_file.name}: {e}")
+
+    # Prepare path for FFmpeg
+    # The issue: FFmpeg filter parser on Windows has trouble with colons in absolute paths
+    # Solution: Change working directory to temp folder and use relative paths
+    # This completely avoids the colon parsing issue
+    
+    # Get relative paths from temp directory
+    ass_filename = ass_file.name
+    v_in_filename = v_in.name
+    v_out_filename = v_out.name
+    
+    # Use relative path - no colons to worry about!
+    subtitles_filter = f"subtitles={ass_filename}"
+    
+    # Set up fontconfig environment
+    env = os.environ.copy()
+    env["FONTCONFIG_PATH"] = str(ass_file_dir.resolve())
+    
+    # Debug output
+    print(f"FFmpeg filter: {subtitles_filter}")
+    print(f"Working directory: {tmp}")
+    print(f"ASS file: {ass_filename}")
+    print(f"Fonts directory: {ass_file_dir}")
+    
     cmd = [
-        "ffmpeg", "-y", "-i", str(v_in),
-        "-vf", f"subtitles='{ass_file.name}'",
+        "ffmpeg", "-y", "-i", v_in_filename,
+        "-vf", subtitles_filter,
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
-        "-c:a", "copy", str(v_out)
+        "-c:a", "copy", v_out_filename
     ]
 
     try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        # Change to temp directory before running FFmpeg
+        # This allows us to use relative paths and avoid colon issues
+        result = subprocess.run(
+            cmd, 
+            check=True, 
+            capture_output=True, 
+            text=True, 
+            env=env,
+            cwd=str(tmp)  # Run FFmpeg from temp directory
+        )
+        if result.stderr:
+            # Log FFmpeg output for debugging (non-fatal warnings are common)
+            print("FFmpeg output:", result.stderr[:500])  # First 500 chars
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr if e.stderr else str(e)
+        print(f"FFmpeg error: {error_msg}")
+        raise HTTPException(status_code=500, detail=f"Rendering failed: {error_msg[:200]}")
     finally:
-        if ass_file.exists(): os.remove(ass_file)
-        # Cleanup of input video is optional, but helps save space
-        if v_in.exists(): os.remove(v_in)
+        # Cleanup temporary files
+        if ass_file.exists(): 
+            os.remove(ass_file)
+        if v_in.exists(): 
+            os.remove(v_in)
+        # Cleanup temporary fonts directory
+        if tmp_fonts_dir.exists():
+            import shutil
+            try:
+                shutil.rmtree(tmp_fonts_dir)
+            except Exception as e:
+                print(f"Warning: Could not remove temp fonts dir: {e}")
 
     return {"file_name": v_out.name}
 
