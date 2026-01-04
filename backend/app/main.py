@@ -1,10 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from app.api.routes_transcribe import router as transcribe_router
 from app.api.routes_render import router as render_router
+from app.api.routes_projects import router as projects_router
+from app.database.connection import connect_to_mongo, close_mongo_connection
 
-app = FastAPI(title="CaptionCraft API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Connect to MongoDB
+    await connect_to_mongo()
+    yield
+    # Shutdown: Close MongoDB connection
+    await close_mongo_connection()
+
+
+app = FastAPI(title="CaptionCraft API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -16,6 +29,7 @@ app.add_middleware(
 
 app.include_router(transcribe_router, prefix="/api")
 app.include_router(render_router, prefix="/api")
+app.include_router(projects_router, prefix="/api")
 
 
 @app.get("/health")
