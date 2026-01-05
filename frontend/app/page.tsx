@@ -5,8 +5,14 @@ import {
   uploadAndTranscribe,
   renderVideo,
   downloadRenderedVideo,
+  saveProject,
+  updateProject,
+  loadProject,
+  listProjects,
+  deleteProject,
   type Segment,
   type StyledSpan,
+  type Project,
 } from "@/lib/apiClient";
 
 // Make a Segment with content from plain text
@@ -118,6 +124,14 @@ export default function HomePage() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [presetsOpen, setPresetsOpen] = useState(false);
+  
+  // Project management state
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [projectTitle, setProjectTitle] = useState("Untitled Project");
   
   // GLOBAL subtitle style (affects ALL subtitles)
   const [globalStyle, setGlobalStyle] = useState<{
@@ -378,6 +392,9 @@ export default function HomePage() {
     setError(null);
     setSegments([]);
     setSelectedWord({ segmentIndex: null, wordIndex: null });
+    // Reset project when new video is uploaded
+    setCurrentProjectId(null);
+    setProjectTitle("Untitled Project");
 
     try {
       const data = await uploadAndTranscribe(file);
@@ -455,6 +472,157 @@ export default function HomePage() {
     }
   }
 
+  // Helper function to convert blob URL to data URL
+  async function blobToDataURL(blobUrl: string): Promise<string> {
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error("Failed to convert blob to data URL:", error);
+      return blobUrl; // Fallback to original URL
+    }
+  }
+
+  // Project management handlers
+  async function handleSaveProject() {
+    if (!segments.length) {
+      setError("No subtitles to save");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      // Convert blob URL to data URL if it's a blob URL
+      // This ensures the video persists after page reload
+      let videoUrlToSave = videoUrl;
+      if (videoUrl && videoUrl.startsWith("blob:")) {
+        console.log("Converting blob URL to data URL...");
+        videoUrlToSave = await blobToDataURL(videoUrl);
+        console.log("Conversion complete. Data URL length:", videoUrlToSave.length);
+      }
+
+      const projectData = {
+        title: projectTitle,
+        video_filename: videoUrl ? "video.mp4" : null,
+        video_url: videoUrlToSave, // Use converted data URL
+        segments,
+        global_style: globalStyle,
+      };
+
+      let savedProject: Project;
+      if (currentProjectId) {
+        // Update existing project
+        savedProject = await updateProject(currentProjectId, projectData);
+      } else {
+        // Create new project
+        savedProject = await saveProject(projectData);
+        setCurrentProjectId(savedProject.id);
+      }
+      
+      // Refresh projects list
+      await loadProjectsList();
+      setError(null);
+      alert("Project saved successfully!");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to save project");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLoadProject(projectId: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const project = await loadProject(projectId);
+      
+      // Load project data into editor
+      setSegments(project.segments);
+      if (project.global_style) {
+        setGlobalStyle(project.global_style);
+      }
+      
+      // Handle video URL - data URLs work directly, blob URLs are invalid after reload
+      if (project.video_url) {
+        if (project.video_url.startsWith("data:")) {
+          // Data URL - works directly, can be used immediately
+          setVideoUrl(project.video_url);
+          console.log("Loaded video from data URL");
+        } else if (project.video_url.startsWith("blob:")) {
+          // Old blob URL - won't work after reload, show warning
+          console.warn("Project has blob URL which is no longer valid. Video cannot be loaded.");
+          setError("Video file not available. This project was saved with a temporary video URL. Please re-upload the video.");
+          setVideoUrl(null);
+        } else {
+          // Other URL types (http/https) - use directly
+          setVideoUrl(project.video_url);
+        }
+      } else {
+        // No video URL in project
+        setVideoUrl(null);
+      }
+      
+      setProjectTitle(project.title);
+      setCurrentProjectId(project.id);
+      setProjectsOpen(false);
+      
+      setError(null);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to load project");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteProject(projectId: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this project?")) {
+      return;
+    }
+
+    try {
+      await deleteProject(projectId);
+      if (currentProjectId === projectId) {
+        // Clear current project if deleting the active one
+        setCurrentProjectId(null);
+        setProjectTitle("Untitled Project");
+      }
+      await loadProjectsList();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to delete project");
+    }
+  }
+
+  async function loadProjectsList() {
+    setLoadingProjects(true);
+    try {
+      const projectList = await listProjects();
+      setProjects(projectList);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? "Failed to load projects");
+    } finally {
+      setLoadingProjects(false);
+    }
+  }
+
+  useEffect(() => {
+    // Load projects list when modal opens
+    if (projectsOpen) {
+      loadProjectsList();
+    }
+  }, [projectsOpen]);
+
   function makePositionHandlers(idx: number) {
     return {
       onMouseDown: (e: React.MouseEvent<HTMLDivElement>) => {
@@ -511,9 +679,33 @@ export default function HomePage() {
           className="mb-4"
         />
 
+        {/* Project Title Input */}
+        <div className="mb-3">
+          <input
+            type="text"
+            value={projectTitle}
+            onChange={(e) => setProjectTitle(e.target.value)}
+            placeholder="Project Title"
+            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-sm mb-2"
+          />
+        </div>
+
         {/* GLOBAL CONTROLS: Presets + Size/Text/Bg */}
         <div className="mb-3 space-y-2">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleSaveProject}
+              disabled={!segments.length || saving}
+              className="px-3 py-1 text-xs rounded border border-blue-600 text-blue-400 disabled:opacity-40"
+            >
+              {saving ? "Saving..." : currentProjectId ? "Update" : "Save Project"}
+            </button>
+            <button
+              onClick={() => setProjectsOpen(true)}
+              className="px-3 py-1 text-xs rounded border border-purple-600 text-purple-400"
+            >
+              Load Project
+            </button>
             <button
               onClick={handleDownloadSrt}
               disabled={!segments.length}
@@ -909,6 +1101,74 @@ export default function HomePage() {
           </p>
         )}
       </section>
+
+      {/* Project History Modal */}
+      {projectsOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setProjectsOpen(false)}
+        >
+          <div 
+            className="bg-black border border-gray-600 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">Project History</h2>
+              <button
+                onClick={() => setProjectsOpen(false)}
+                className="text-gray-400 hover:text-white text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {loadingProjects ? (
+              <p className="text-gray-400 text-center py-8">Loading projects...</p>
+            ) : projects.length === 0 ? (
+              <p className="text-gray-400 text-center py-8">No projects saved yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className={`border rounded p-3 cursor-pointer transition-colors ${
+                      currentProjectId === project.id
+                        ? "border-blue-500 bg-blue-900 bg-opacity-20"
+                        : "border-gray-600 hover:border-gray-500"
+                    }`}
+                    onClick={() => handleLoadProject(project.id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-white mb-1">
+                          {project.title}
+                        </h3>
+                        <p className="text-xs text-gray-400">
+                          {project.segments.length} segments • 
+                          Updated: {new Date(project.updated_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        {currentProjectId === project.id && (
+                          <span className="text-xs text-blue-400 px-2 py-1 border border-blue-500 rounded">
+                            Current
+                          </span>
+                        )}
+                        <button
+                          onClick={(e) => handleDeleteProject(project.id, e)}
+                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500 rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

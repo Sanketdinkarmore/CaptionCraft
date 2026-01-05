@@ -86,3 +86,109 @@ export async function downloadRenderedVideo(fileName: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(downloadUrl);
 }
+
+// ==================== Project API Functions ====================
+
+export type Project = {
+  id: string;
+  title: string;
+  user_id?: string | null;
+  video_filename?: string | null;
+  video_url?: string | null;
+  segments: Segment[];
+  global_style?: GlobalStyle | null;
+  created_at: string;
+  updated_at: string;
+  thumbnail_url?: string | null;
+};
+
+export type ProjectCreate = {
+  title: string;
+  user_id?: string | null;
+  video_filename?: string | null;
+  video_url?: string | null;
+  segments: Segment[];
+  global_style?: GlobalStyle | null;
+};
+
+export type ProjectUpdate = {
+  title?: string;
+  segments?: Segment[];
+  global_style?: GlobalStyle | null;
+  video_filename?: string | null;
+  video_url?: string | null;
+};
+
+// Save a new project
+export async function saveProject(project: ProjectCreate): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(project),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to save project" }));
+    throw new Error(error.detail || "Failed to save project");
+  }
+
+  return res.json();
+}
+
+// Update an existing project
+export async function updateProject(projectId: string, update: ProjectUpdate): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(update),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to update project" }));
+    throw new Error(error.detail || "Failed to update project");
+  }
+
+  return res.json();
+}
+
+// Load a specific project
+export async function loadProject(projectId: string): Promise<Project> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`);
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Project not found" }));
+    throw new Error(error.detail || "Project not found");
+  }
+
+  return res.json();
+}
+
+// List all projects
+export async function listProjects(userId?: string): Promise<Project[]> {
+  const url = userId 
+    ? `${API_BASE}/projects?user_id=${encodeURIComponent(userId)}`
+    : `${API_BASE}/projects`;
+  
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    throw new Error("Failed to load projects");
+  }
+
+  return res.json();
+}
+
+// Delete a project
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to delete project");
+  }
+}
