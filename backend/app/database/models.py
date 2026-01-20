@@ -10,7 +10,15 @@ class PyObjectId(ObjectId):
         yield cls.validate
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, *args, **kwargs):
+        """
+        Pydantic v2 validator signature includes an extra 'info' argument.
+        Accept *args/**kwargs for compatibility.
+        """
+        if v is None:
+            return None
+        if isinstance(v, ObjectId):
+            return v
         if not ObjectId.is_valid(v):
             raise ValueError("Invalid ObjectId")
         return ObjectId(v)

@@ -1,6 +1,12 @@
 // frontend/lib/apiClient.ts
 export const API_BASE = "http://localhost:8000/api";
 
+function getAuthHeaders(): HeadersInit {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("cc_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export type StyledSpan = {
   text: string;
   color?: string;
@@ -42,6 +48,7 @@ export async function uploadAndTranscribe(file: File) {
   const res = await fetch(`${API_BASE}/transcribe`, {
     method: "POST",
     body: formData,
+    headers: { ...getAuthHeaders() },
   });
 
   if (!res.ok) {
@@ -64,6 +71,7 @@ export async function renderVideo(
   const res = await fetch(`${API_BASE}/render`, {
     method: "POST",
     body: formData,
+    headers: { ...getAuthHeaders() },
   });
 
   if (!res.ok) throw new Error("Render failed");
@@ -72,7 +80,7 @@ export async function renderVideo(
 
 export async function downloadRenderedVideo(fileName: string) {
   const url = `${API_BASE}/render/download/${encodeURIComponent(fileName)}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { ...getAuthHeaders() } });
   if (!res.ok) throw new Error("Download failed");
 
   const blob = await res.blob();
@@ -125,6 +133,7 @@ export async function saveProject(project: ProjectCreate): Promise<Project> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(project),
   });
@@ -143,6 +152,7 @@ export async function updateProject(projectId: string, update: ProjectUpdate): P
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
+      ...getAuthHeaders(),
     },
     body: JSON.stringify(update),
   });
@@ -157,7 +167,7 @@ export async function updateProject(projectId: string, update: ProjectUpdate): P
 
 // Load a specific project
 export async function loadProject(projectId: string): Promise<Project> {
-  const res = await fetch(`${API_BASE}/projects/${projectId}`);
+  const res = await fetch(`${API_BASE}/projects/${projectId}`, { headers: { ...getAuthHeaders() } });
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Project not found" }));
@@ -173,7 +183,7 @@ export async function listProjects(userId?: string): Promise<Project[]> {
     ? `${API_BASE}/projects?user_id=${encodeURIComponent(userId)}`
     : `${API_BASE}/projects`;
   
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: { ...getAuthHeaders() } });
 
   if (!res.ok) {
     throw new Error("Failed to load projects");
@@ -186,6 +196,7 @@ export async function listProjects(userId?: string): Promise<Project[]> {
 export async function deleteProject(projectId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/projects/${projectId}`, {
     method: "DELETE",
+    headers: { ...getAuthHeaders() },
   });
 
   if (!res.ok) {

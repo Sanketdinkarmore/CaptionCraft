@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   uploadAndTranscribe,
   renderVideo,
@@ -14,6 +15,7 @@ import {
   type StyledSpan,
   type Project,
 } from "@/lib/apiClient";
+import { getToken } from "@/lib/authClient";
 
 // Make a Segment with content from plain text
 function makeSegmentFromText(
@@ -117,6 +119,7 @@ function clamp01(v: number) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -132,6 +135,15 @@ export default function HomePage() {
   const [saving, setSaving] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectTitle, setProjectTitle] = useState("Untitled Project");
+
+  useEffect(() => {
+    // Minimal protection: require login before using the editor
+    // (Landing page will come later; for now, redirect to /login)
+    const token = getToken();
+    if (!token) {
+      router.push("/login");
+    }
+  }, [router]);
   
   // GLOBAL subtitle style (affects ALL subtitles)
   const [globalStyle, setGlobalStyle] = useState<{

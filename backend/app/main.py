@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from app.api.routes_transcribe import router as transcribe_router
 from app.api.routes_render import router as render_router
 from app.api.routes_projects import router as projects_router
+from app.api.routes_auth import router as auth_router
 from app.database.connection import connect_to_mongo, close_mongo_connection
 
 
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(transcribe_router, prefix="/api")
 app.include_router(render_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 
 @app.get("/health")
