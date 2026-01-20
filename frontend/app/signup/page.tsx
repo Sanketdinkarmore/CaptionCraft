@@ -19,7 +19,7 @@ export default function SignupPage() {
     try {
       const res: AuthResponse = await signup(name, email, password);
       setToken(res.access_token);
-      router.push("/");
+      router.push("/editor");
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {
