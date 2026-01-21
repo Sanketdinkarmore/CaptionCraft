@@ -11,6 +11,7 @@ import {
   loadProject,
   listProjects,
   deleteProject,
+  uploadVideo,
   type Segment,
   type StyledSpan,
   type Project,
@@ -125,6 +126,7 @@ export default function EditorPage() {
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null); // Store original file for Cloudinary upload
   const [currentTime, setCurrentTime] = useState(0);
   const [presetsOpen, setPresetsOpen] = useState(false);
   
@@ -413,6 +415,9 @@ export default function EditorPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Store the original file for Cloudinary upload later
+    setVideoFile(file);
+    
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
     setLoading(true);
@@ -499,23 +504,6 @@ export default function EditorPage() {
     }
   }
 
-  // Helper function to convert blob URL to data URL
-  async function blobToDataURL(blobUrl: string): Promise<string> {
-    try {
-      const response = await fetch(blobUrl);
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error("Failed to convert blob to data URL:", error);
-      return blobUrl; // Fallback to original URL
-    }
-  }
-
   // Project management handlers
   async function handleSaveProject() {
     if (!segments.length) {
@@ -526,20 +514,35 @@ export default function EditorPage() {
     setSaving(true);
     setError(null);
     try {
-      // Convert blob URL to data URL if it's a blob URL
-      // This ensures the video persists after page reload
+      // Upload video to Cloudinary if it's a blob URL (new upload)
+      // If it's already a Cloudinary URL (https://), use it directly
       let videoUrlToSave = videoUrl;
-      if (videoUrl && videoUrl.startsWith("blob:")) {
-        console.log("Converting blob URL to data URL...");
-        videoUrlToSave = await blobToDataURL(videoUrl);
-        console.log("Conversion complete. Data URL length:", videoUrlToSave.length);
+      
+      if (videoUrl && videoUrl.startsWith("blob:") && videoFile) {
+        // New video upload - upload to Cloudinary
+        console.log("Uploading video to Cloudinary...");
+        try {
+          const uploadResult = await uploadVideo(videoFile);
+          videoUrlToSave = uploadResult.video_url;
+          console.log("Video uploaded to Cloudinary:", videoUrlToSave);
+        } catch (uploadErr: any) {
+          console.error("Cloudinary upload failed:", uploadErr);
+          throw new Error(`Failed to upload video: ${uploadErr.message || "Unknown error"}`);
+        }
+      } else if (videoUrl && (videoUrl.startsWith("https://") || videoUrl.startsWith("http://"))) {
+        // Already a Cloudinary URL or other remote URL - use directly
+        videoUrlToSave = videoUrl;
+      } else if (videoUrl && videoUrl.startsWith("data:")) {
+        // Legacy data URL - warn user but allow saving
+        console.warn("Project contains data URL. Consider re-uploading video for better performance.");
+        videoUrlToSave = videoUrl;
       }
 
       const projectData = {
         title: projectTitle,
         user_id: currentUser?.id || null,
-        video_filename: videoUrl ? "video.mp4" : null,
-        video_url: videoUrlToSave, // Use converted data URL
+        video_filename: videoFile?.name || (videoUrl ? "video.mp4" : null),
+        video_url: videoUrlToSave,
         segments,
         global_style: globalStyle,
       };
@@ -578,24 +581,33 @@ export default function EditorPage() {
         setGlobalStyle(project.global_style);
       }
       
-      // Handle video URL - data URLs work directly, blob URLs are invalid after reload
+      // Handle video URL - Cloudinary URLs (https://) work directly
       if (project.video_url) {
-        if (project.video_url.startsWith("data:")) {
-          // Data URL - works directly, can be used immediately
+        if (project.video_url.startsWith("https://") || project.video_url.startsWith("http://")) {
+          // Cloudinary URL or other remote URL - use directly
           setVideoUrl(project.video_url);
-          console.log("Loaded video from data URL");
+          setVideoFile(null); // Clear file reference since we're loading from URL
+          console.log("Loaded video from Cloudinary URL");
+        } else if (project.video_url.startsWith("data:")) {
+          // Legacy data URL - still supported but not ideal
+          setVideoUrl(project.video_url);
+          setVideoFile(null);
+          console.log("Loaded video from data URL (legacy format)");
         } else if (project.video_url.startsWith("blob:")) {
           // Old blob URL - won't work after reload, show warning
           console.warn("Project has blob URL which is no longer valid. Video cannot be loaded.");
           setError("Video file not available. This project was saved with a temporary video URL. Please re-upload the video.");
           setVideoUrl(null);
+          setVideoFile(null);
         } else {
-          // Other URL types (http/https) - use directly
+          // Unknown URL format - try to use it
           setVideoUrl(project.video_url);
+          setVideoFile(null);
         }
       } else {
         // No video URL in project
         setVideoUrl(null);
+        setVideoFile(null);
       }
       
       setProjectTitle(project.title);

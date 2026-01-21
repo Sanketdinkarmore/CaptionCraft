@@ -95,6 +95,42 @@ export async function downloadRenderedVideo(fileName: string) {
   URL.revokeObjectURL(downloadUrl);
 }
 
+// ==================== Video Upload Functions ====================
+
+export type VideoUploadResponse = {
+  video_url: string;
+  public_id: string;
+  resource_type: string;
+  duration?: number;
+  width?: number;
+  height?: number;
+  format?: string;
+  bytes?: number;
+};
+
+/**
+ * Upload a video file to Cloudinary
+ * @param file The video file to upload
+ * @returns Cloudinary upload response with video_url
+ */
+export async function uploadVideo(file: File): Promise<VideoUploadResponse> {
+  const formData = new FormData();
+  formData.append("video", file);
+
+  const res = await fetch(`${API_BASE}/upload/video`, {
+    method: "POST",
+    body: formData,
+    headers: { ...getAuthHeaders() },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Upload failed" }));
+    throw new Error(error.detail || "Failed to upload video");
+  }
+
+  return res.json();
+}
+
 // ==================== Project API Functions ====================
 
 export type Project = {
