@@ -43,13 +43,20 @@ async def create_project(project_data: ProjectCreate) -> ProjectResponse:
     created_project = await projects_collection.find_one({"_id": result.inserted_id})
     return _project_doc_to_response(created_project)
 
-async def get_project(project_id: str) -> Optional[ProjectResponse]:
-    """Get a project by ID"""
+async def get_project(project_id: str, user_id: Optional[str] = None) -> Optional[ProjectResponse]:
+    """Get a project by ID, optionally scoped to a user"""
     db = get_database()
     projects_collection = db["projects"]
     
     try:
-        project_doc = await projects_collection.find_one({"_id": ObjectId(project_id)})
+        query: dict = {"_id": ObjectId(project_id)}
+        if user_id:
+            try:
+                query["user_id"] = ObjectId(user_id)
+            except Exception:
+                # Invalid user id, treat as not found
+                return None
+        project_doc = await projects_collection.find_one(query)
         if not project_doc:
             return None
         return _project_doc_to_response(project_doc)
@@ -57,7 +64,7 @@ async def get_project(project_id: str) -> Optional[ProjectResponse]:
         return None
 
 async def get_projects(user_id: Optional[str] = None) -> List[ProjectResponse]:
-    """Get all projects, optionally filtered by user_id"""
+    """Get all projects for a given user (if provided)"""
     db = get_database()
     projects_collection = db["projects"]
     
@@ -75,8 +82,8 @@ async def get_projects(user_id: Optional[str] = None) -> List[ProjectResponse]:
     
     return projects
 
-async def update_project(project_id: str, project_update: ProjectUpdate) -> Optional[ProjectResponse]:
-    """Update a project"""
+async def update_project(project_id: str, project_update: ProjectUpdate, user_id: Optional[str] = None) -> Optional[ProjectResponse]:
+    """Update a project, scoped to a user if provided"""
     db = get_database()
     projects_collection = db["projects"]
     
@@ -94,8 +101,15 @@ async def update_project(project_id: str, project_update: ProjectUpdate) -> Opti
         update_data["global_style"] = project_update.global_style.model_dump()
     
     try:
+        query: dict = {"_id": ObjectId(project_id)}
+        if user_id:
+            try:
+                query["user_id"] = ObjectId(user_id)
+            except Exception:
+                return None
+
         result = await projects_collection.update_one(
-            {"_id": ObjectId(project_id)},
+            query,
             {"$set": update_data}
         )
         
@@ -103,18 +117,25 @@ async def update_project(project_id: str, project_update: ProjectUpdate) -> Opti
             return None
         
         # Fetch updated project
-        updated_project = await projects_collection.find_one({"_id": ObjectId(project_id)})
+        updated_project = await projects_collection.find_one(query)
         return _project_doc_to_response(updated_project)
     except Exception:
         return None
 
-async def delete_project(project_id: str) -> bool:
-    """Delete a project"""
+async def delete_project(project_id: str, user_id: Optional[str] = None) -> bool:
+    """Delete a project, scoped to a user if provided"""
     db = get_database()
     projects_collection = db["projects"]
     
     try:
-        result = await projects_collection.delete_one({"_id": ObjectId(project_id)})
+        query: dict = {"_id": ObjectId(project_id)}
+        if user_id:
+            try:
+                query["user_id"] = ObjectId(user_id)
+            except Exception:
+                return False
+
+        result = await projects_collection.delete_one(query)
         return result.deleted_count > 0
     except Exception:
         return False
