@@ -34,7 +34,10 @@ async def create_project(project_data: ProjectCreate) -> ProjectResponse:
         "global_style": project_data.global_style.model_dump() if project_data.global_style else None,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
-        "thumbnail_url": None
+        "thumbnail_url": getattr(project_data, "thumbnail_url", None),
+        "share_token": None,
+        "shared_with": [],
+        "is_public": False
     }
     
     result = await projects_collection.insert_one(project_doc)
@@ -99,6 +102,8 @@ async def update_project(project_id: str, project_update: ProjectUpdate, user_id
         update_data["segments"] = [seg.model_dump() for seg in project_update.segments]
     if project_update.global_style is not None:
         update_data["global_style"] = project_update.global_style.model_dump()
+    if project_update.thumbnail_url is not None:
+        update_data["thumbnail_url"] = project_update.thumbnail_url
     
     try:
         query: dict = {"_id": ObjectId(project_id)}
@@ -162,6 +167,8 @@ def _project_doc_to_response(doc: dict) -> ProjectResponse:
         global_style=global_style,
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
-        thumbnail_url=doc.get("thumbnail_url")
+        thumbnail_url=doc.get("thumbnail_url"),
+        share_token=doc.get("share_token"),
+        is_public=doc.get("is_public", False)
     )
 

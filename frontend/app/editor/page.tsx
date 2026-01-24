@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   uploadAndTranscribe,
   renderVideo,
@@ -12,6 +12,10 @@ import {
   listProjects,
   deleteProject,
   uploadVideo,
+  uploadThumbnail,
+  generateShareToken,
+  revokeShareToken,
+  getSharedProject,
   type Segment,
   type StyledSpan,
   type Project,
@@ -121,6 +125,8 @@ function clamp01(v: number) {
 
 export default function EditorPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sharedToken = searchParams.get("shared");
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
@@ -137,6 +143,11 @@ export default function EditorPage() {
   const [saving, setSaving] = useState(false);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectTitle, setProjectTitle] = useState("Untitled Project");
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [exportResolution, setExportResolution] = useState<"original" | "720p" | "1080p">("original");
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -155,12 +166,36 @@ export default function EditorPage() {
       .then((user) => {
         setCurrentUser(user);
         setAuthChecked(true);
+        
+        // If shared token is present, load the shared project
+        if (sharedToken) {
+          getSharedProject(sharedToken)
+            .then((project) => {
+              // Load the shared project into editor
+              setSegments(project.segments);
+              if (project.global_style) {
+                setGlobalStyle(project.global_style);
+              }
+              if (project.video_url) {
+                setVideoUrl(project.video_url);
+              }
+              if (project.thumbnail_url) {
+                setThumbnailUrl(project.thumbnail_url);
+              }
+              setProjectTitle(project.title);
+              // Note: We don't set currentProjectId because this is a shared project
+              // User would need to save it as their own project
+            })
+            .catch((err) => {
+              console.error("Failed to load shared project:", err);
+            });
+        }
       })
       .catch(() => {
         clearToken();
         router.push("/login");
       });
-  }, [router]);
+  }, [router, sharedToken]);
   
   // GLOBAL subtitle style (affects ALL subtitles)
   const [globalStyle, setGlobalStyle] = useState<{
@@ -427,9 +462,15 @@ export default function EditorPage() {
     // Reset project when new video is uploaded
     setCurrentProjectId(null);
     setProjectTitle("Untitled Project");
+    
+    // Show progress for transcription
+    setUploadProgress(10); // Initial upload
 
     try {
+      // Simulate progress for transcription (we can't track actual progress server-side easily)
+      setUploadProgress(30);
       const data = await uploadAndTranscribe(file);
+      setUploadProgress(80);
       const withContent: Segment[] = data.segments.map((raw) =>
         makeSegmentFromText(raw.start, raw.end, raw.text)
       );
@@ -451,9 +492,12 @@ export default function EditorPage() {
       });
 
       setSegments(fixed);
+      setUploadProgress(100);
+      setTimeout(() => setUploadProgress(null), 500);
     } catch (err: any) {
       console.error(err);
       setError(err.message ?? "Something went wrong");
+      setUploadProgress(null);
     } finally {
       setLoading(false);
     }
@@ -484,7 +528,8 @@ export default function EditorPage() {
     console.log("sending to backend:", JSON.stringify({
       segments,
       globalStyle,
-      videoUrl
+      videoUrl,
+      resolution: exportResolution
     }, null, 2));
     
     setRendering(true);
@@ -494,6 +539,7 @@ export default function EditorPage() {
         segments,
         globalStyle,
         videoUrl: videoUrl!,
+        resolution: exportResolution,
       });
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
@@ -501,6 +547,63 @@ export default function EditorPage() {
       setError(err.message ?? "Render failed");
     } finally {
       setRendering(false);
+    }
+  }
+  
+  // Thumbnail management
+  async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      const result = await uploadThumbnail(file);
+      setThumbnailUrl(result.thumbnail_url);
+      
+      // Update current project if it exists
+      if (currentProjectId) {
+        await updateProject(currentProjectId, {
+          thumbnail_url: result.thumbnail_url
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to upload thumbnail");
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+  // Project sharing
+  async function handleShareProject() {
+    if (!currentProjectId) {
+      setError("Please save the project first");
+      return;
+    }
+    
+    try {
+      const result = await generateShareToken(currentProjectId);
+      setShareToken(result.share_token);
+      const fullUrl = `${window.location.origin}/shared/${result.share_token}`;
+      setShareUrl(fullUrl);
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(fullUrl);
+      alert("Share link copied to clipboard!");
+    } catch (err: any) {
+      setError(err.message || "Failed to generate share link");
+    }
+  }
+  
+  async function handleRevokeShare() {
+    if (!currentProjectId) return;
+    
+    try {
+      await revokeShareToken(currentProjectId);
+      setShareToken(null);
+      setShareUrl(null);
+      alert("Share link revoked");
+    } catch (err: any) {
+      setError(err.message || "Failed to revoke share link");
     }
   }
 
@@ -518,16 +621,32 @@ export default function EditorPage() {
       // If it's already a Cloudinary URL (https://), use it directly
       let videoUrlToSave = videoUrl;
       
+      let thumbnailUrlToSave = thumbnailUrl;
+      
       if (videoUrl && videoUrl.startsWith("blob:") && videoFile) {
         // New video upload - upload to Cloudinary
         console.log("Uploading video to Cloudinary...");
+        setUploadProgress(0);
         try {
-          const uploadResult = await uploadVideo(videoFile);
+          const uploadResult = await uploadVideo(
+            videoFile, 
+            true, // Auto-generate thumbnail
+            (progress) => {
+              setUploadProgress(progress);
+            }
+          );
           videoUrlToSave = uploadResult.video_url;
+          // Use auto-generated thumbnail if available
+          if (uploadResult.thumbnail_url && !thumbnailUrlToSave) {
+            thumbnailUrlToSave = uploadResult.thumbnail_url;
+            setThumbnailUrl(uploadResult.thumbnail_url);
+          }
           console.log("Video uploaded to Cloudinary:", videoUrlToSave);
         } catch (uploadErr: any) {
           console.error("Cloudinary upload failed:", uploadErr);
           throw new Error(`Failed to upload video: ${uploadErr.message || "Unknown error"}`);
+        } finally {
+          setUploadProgress(null);
         }
       } else if (videoUrl && (videoUrl.startsWith("https://") || videoUrl.startsWith("http://"))) {
         // Already a Cloudinary URL or other remote URL - use directly
@@ -543,6 +662,7 @@ export default function EditorPage() {
         user_id: currentUser?.id || null,
         video_filename: videoFile?.name || (videoUrl ? "video.mp4" : null),
         video_url: videoUrlToSave,
+        thumbnail_url: thumbnailUrlToSave,
         segments,
         global_style: globalStyle,
       };
@@ -579,6 +699,17 @@ export default function EditorPage() {
       setSegments(project.segments);
       if (project.global_style) {
         setGlobalStyle(project.global_style);
+      }
+      
+      // Load thumbnail
+      if (project.thumbnail_url) {
+        setThumbnailUrl(project.thumbnail_url);
+      }
+      
+      // Load share token if exists
+      if (project.share_token) {
+        setShareToken(project.share_token);
+        setShareUrl(`${window.location.origin}/shared/${project.share_token}`);
       }
       
       // Handle video URL - Cloudinary URLs (https://) work directly
@@ -778,8 +909,21 @@ export default function EditorPage() {
               disabled={!segments.length || saving}
               className="px-3 py-1 text-xs rounded border border-blue-600 text-blue-400 disabled:opacity-40"
             >
-              {saving ? "Saving..." : currentProjectId ? "Update" : "Save Project"}
+              {saving ? (uploadProgress !== null ? `Uploading ${Math.round(uploadProgress)}%` : "Saving...") : currentProjectId ? "Update" : "Save Project"}
             </button>
+            {(uploadProgress !== null && uploadProgress < 100) && (
+              <div className="w-full">
+                <div className="bg-gray-700 rounded-full h-1.5 mb-1">
+                  <div
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  {uploadProgress < 30 ? "Uploading video..." : uploadProgress < 80 ? "Transcribing..." : "Processing..."}
+                </p>
+              </div>
+            )}
             <button
               onClick={() => setProjectsOpen(true)}
               className="px-3 py-1 text-xs rounded border border-purple-600 text-purple-400"
@@ -800,7 +944,84 @@ export default function EditorPage() {
             >
               {rendering ? "Rendering..." : "Render Video"}
             </button>
+            {shareToken ? (
+              <button
+                onClick={handleRevokeShare}
+                className="px-3 py-1 text-xs rounded border border-red-600 text-red-400"
+              >
+                Revoke Share
+              </button>
+            ) : (
+              <button
+                onClick={handleShareProject}
+                disabled={!currentProjectId}
+                className="px-3 py-1 text-xs rounded border border-yellow-600 text-yellow-400 disabled:opacity-40"
+              >
+                Share
+              </button>
+            )}
           </div>
+          
+          {/* Resolution Selector */}
+          <div className="mb-3">
+            <label className="text-xs text-gray-400 mb-1 block">Export Resolution</label>
+            <select
+              value={exportResolution}
+              onChange={(e) => setExportResolution(e.target.value as "original" | "720p" | "1080p")}
+              className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-xs"
+            >
+              <option value="original">Original</option>
+              <option value="720p">720p</option>
+              <option value="1080p">1080p</option>
+            </select>
+          </div>
+          
+          {/* Thumbnail Management */}
+          {thumbnailUrl && (
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 mb-1 block">Project Thumbnail</label>
+              <div className="relative">
+                <img 
+                  src={thumbnailUrl} 
+                  alt="Project thumbnail" 
+                  className="w-full h-32 object-cover rounded border border-gray-600"
+                />
+                <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 hover:opacity-100 rounded cursor-pointer transition-opacity">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleThumbnailUpload}
+                    className="hidden"
+                  />
+                  <span className="text-white text-xs px-2 py-1 bg-blue-600 rounded">Change</span>
+                </label>
+              </div>
+            </div>
+          )}
+          
+          {/* Share URL Display */}
+          {shareUrl && (
+            <div className="mb-3 p-2 bg-gray-900 rounded border border-gray-700">
+              <label className="text-xs text-gray-400 mb-1 block">Share Link</label>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 px-2 py-1 text-xs rounded border border-gray-600 bg-black text-white"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl);
+                    alert("Link copied!");
+                  }}
+                  className="px-2 py-1 text-xs rounded border border-blue-600 text-blue-400"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* DROPDOWN: Preset Style Selection */}
           <div className="relative">
@@ -1208,7 +1429,8 @@ export default function EditorPage() {
               <p className="text-gray-400 text-center py-8">No projects saved yet.</p>
             ) : (
               <div className="space-y-2">
-                {projects.map((project) => (
+                {projects.map((project) => {
+                  return (
                   <div
                     key={project.id}
                     className={`border rounded p-3 cursor-pointer transition-colors ${
@@ -1218,32 +1440,42 @@ export default function EditorPage() {
                     }`}
                     onClick={() => handleLoadProject(project.id)}
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white mb-1">
-                          {project.title}
-                        </h3>
-                        <p className="text-xs text-gray-400">
-                          {project.segments.length} segments • 
-                          Updated: {new Date(project.updated_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        {currentProjectId === project.id && (
-                          <span className="text-xs text-blue-400 px-2 py-1 border border-blue-500 rounded">
-                            Current
-                          </span>
-                        )}
-                        <button
-                          onClick={(e) => handleDeleteProject(project.id, e)}
-                          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500 rounded"
-                        >
-                          Delete
-                        </button>
+                    <div className="flex gap-3">
+                      {project.thumbnail_url && (
+                        <img
+                          src={project.thumbnail_url}
+                          alt={project.title}
+                          className="w-24 h-16 object-cover rounded border border-gray-700"
+                        />
+                      )}
+                      <div className="flex-1 flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-white mb-1">
+                            {project.title}
+                          </h3>
+                          <p className="text-xs text-gray-400">
+                            {project.segments.length} segments • 
+                            Updated: {new Date(project.updated_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          {currentProjectId === project.id && (
+                            <span className="text-xs text-blue-400 px-2 py-1 border border-blue-500 rounded">
+                              Current
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => handleDeleteProject(project.id, e)}
+                            className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500 rounded"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

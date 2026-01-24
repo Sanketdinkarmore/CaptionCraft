@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, setToken, type AuthResponse, loginWithGoogleCredential } from "@/lib/authClient";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sharedToken = searchParams.get("shared");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,12 @@ export default function LoginPage() {
     try {
       const res: AuthResponse = await login(email, password);
       setToken(res.access_token);
-      router.push("/editor");
+      // Redirect to editor with shared token if present
+      if (sharedToken) {
+        router.push(`/editor?shared=${sharedToken}`);
+      } else {
+        router.push("/editor");
+      }
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -32,7 +39,12 @@ export default function LoginPage() {
     try {
       const res = await loginWithGoogleCredential(credential);
       setToken(res.access_token);
-      router.push("/editor");
+      // Redirect to editor with shared token if present
+      if (sharedToken) {
+        router.push(`/editor?shared=${sharedToken}`);
+      } else {
+        router.push("/editor");
+      }
     } catch (err: any) {
       setError(err.message || "Google login failed");
     } finally {

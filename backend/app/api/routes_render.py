@@ -229,6 +229,7 @@ async def render_video(
     video: UploadFile = File(...),
     segments: str = Form(...),
     globalStyle: str = Form(""),
+    resolution: str = Form("original"),  # "original", "720p", "1080p"
 ):
     try:
         raw_segs = json.loads(segments)
@@ -280,8 +281,17 @@ async def render_video(
     v_in_filename = v_in.name
     v_out_filename = v_out.name
     
-    # Use relative path - no colons to worry about!
-    subtitles_filter = f"subtitles={ass_filename}"
+    # Build filter chain with optional scaling based on resolution
+    # Apply scaling BEFORE subtitles for better quality
+    if resolution == "720p":
+        # Scale to 720p, then apply subtitles
+        subtitles_filter = f"scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,subtitles={ass_filename}"
+    elif resolution == "1080p":
+        # Scale to 1080p, then apply subtitles
+        subtitles_filter = f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,subtitles={ass_filename}"
+    else:
+        # "original" means no scaling, just subtitles
+        subtitles_filter = f"subtitles={ass_filename}"
     
     # Set up fontconfig environment
     env = os.environ.copy()
@@ -293,13 +303,16 @@ async def render_video(
     print(f"ASS file: {ass_filename}")
     print(f"Fonts directory: {ass_file_dir}")
     
+    # Build FFmpeg command
+    # The scale filter already handles resolution, so we don't need -s flag
     cmd = [
         "ffmpeg", "-y", "-i", v_in_filename,
         "-vf", subtitles_filter,
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "22",
+        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
         "-c:a", "copy", v_out_filename
     ]
 
+    thumbnail_path = None
     try:
         # Change to temp directory before running FFmpeg
         # This allows us to use relative paths and avoid colon issues
@@ -314,6 +327,15 @@ async def render_video(
         if result.stderr:
             # Log FFmpeg output for debugging (non-fatal warnings are common)
             print("FFmpeg output:", result.stderr[:500])  # First 500 chars
+        
+        # Generate thumbnail from rendered video (for poster image)
+        try:
+            from app.services.thumbnail_service import generate_thumbnail_from_video, upload_thumbnail_to_cloudinary
+            thumbnail_path = generate_thumbnail_from_video(str(v_out), time_offset=1.0)
+            # Upload thumbnail to Cloudinary (optional - can return local path for now)
+            # For now, we'll return the thumbnail path in the response
+        except Exception as thumb_err:
+            print(f"Warning: Failed to generate rendered video thumbnail: {thumb_err}")
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr if e.stderr else str(e)
         print(f"FFmpeg error: {error_msg}")
@@ -332,7 +354,12 @@ async def render_video(
             except Exception as e:
                 print(f"Warning: Could not remove temp fonts dir: {e}")
 
-    return {"file_name": v_out.name}
+    # Return file name and thumbnail path if generated
+    response = {"file_name": v_out.name}
+    if thumbnail_path and Path(thumbnail_path).exists():
+        response["thumbnail_path"] = thumbnail_path
+    
+    return response
 
 @router.get("/render/download/{file_name}")
 async def download(file_name: str):

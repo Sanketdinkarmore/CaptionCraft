@@ -93,6 +93,7 @@ class ProjectCreate(ProjectBase):
     video_url: Optional[str] = None  # Will store video file reference
     segments: List[Segment] = Field(default_factory=list)
     global_style: Optional[GlobalStyle] = None
+    thumbnail_url: Optional[str] = None
 
 class ProjectInDB(ProjectBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
@@ -104,6 +105,9 @@ class ProjectInDB(ProjectBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     thumbnail_url: Optional[str] = None
+    share_token: Optional[str] = None  # Unique token for sharing
+    shared_with: List[PyObjectId] = Field(default_factory=list)  # List of user IDs with access
+    is_public: bool = False  # Public sharing flag
     
     class Config:
         populate_by_name = True
@@ -116,6 +120,7 @@ class ProjectUpdate(BaseModel):
     global_style: Optional[GlobalStyle] = None
     video_filename: Optional[str] = None
     video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 class ProjectResponse(ProjectBase):
     id: str
@@ -127,6 +132,8 @@ class ProjectResponse(ProjectBase):
     created_at: datetime
     updated_at: datetime
     thumbnail_url: Optional[str] = None
+    share_token: Optional[str] = None
+    is_public: bool = False
     
     class Config:
         from_attributes = True

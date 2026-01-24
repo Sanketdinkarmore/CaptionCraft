@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signup, setToken, type AuthResponse } from "@/lib/authClient";
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sharedToken = searchParams.get("shared");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +21,12 @@ export default function SignupPage() {
     try {
       const res: AuthResponse = await signup(name, email, password);
       setToken(res.access_token);
-      router.push("/editor");
+      // Redirect to editor with shared token if present
+      if (sharedToken) {
+        router.push(`/editor?shared=${sharedToken}`);
+      } else {
+        router.push("/editor");
+      }
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {
