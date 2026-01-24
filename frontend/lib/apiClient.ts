@@ -66,7 +66,7 @@ export async function renderVideo(
     videoUrl: string;
     resolution?: "original" | "720p" | "1080p";
   }
-): Promise<{ file_name: string }> {
+): Promise<{ file_name: string; thumbnail_path?: string; output_resolution?: string }> {
   const formData = new FormData();
   const videoBlob = await fetch(renderData.videoUrl).then((r) => r.blob());
   formData.append("video", videoBlob, "input.mp4");
@@ -81,7 +81,7 @@ export async function renderVideo(
   });
 
   if (!res.ok) throw new Error("Render failed");
-  return res.json() as Promise<{ file_name: string; thumbnail_path?: string }>;
+  return res.json() as Promise<{ file_name: string; thumbnail_path?: string; output_resolution?: string }>;
 }
 
 export async function downloadRenderedVideo(fileName: string) {

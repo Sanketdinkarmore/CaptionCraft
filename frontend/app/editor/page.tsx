@@ -535,12 +535,21 @@ export default function EditorPage() {
     setRendering(true);
     setError(null);
     try {
-      const { file_name } = await renderVideo({
+      const { file_name, output_resolution } = await renderVideo({
         segments,
         globalStyle,
         videoUrl: videoUrl!,
         resolution: exportResolution,
       });
+      
+      // Log the output resolution for verification
+      if (output_resolution) {
+        console.log(`✅ Video rendered at resolution: ${output_resolution}`);
+        alert(`Video rendered successfully!\nResolution: ${output_resolution}\nSelected: ${exportResolution}`);
+      } else {
+        console.log(`✅ Video rendered (resolution: ${exportResolution})`);
+      }
+      
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
       console.error(err);

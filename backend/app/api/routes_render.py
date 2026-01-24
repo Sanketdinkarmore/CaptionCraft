@@ -231,6 +231,9 @@ async def render_video(
     globalStyle: str = Form(""),
     resolution: str = Form("original"),  # "original", "720p", "1080p"
 ):
+    # Log the resolution parameter for debugging
+    print(f"[RENDER] Resolution requested: {resolution}")
+    
     try:
         raw_segs = json.loads(segments)
         seg_models = [Segment.model_validate(obj) for obj in raw_segs]
@@ -298,10 +301,11 @@ async def render_video(
     env["FONTCONFIG_PATH"] = str(ass_file_dir.resolve())
     
     # Debug output
-    print(f"FFmpeg filter: {subtitles_filter}")
-    print(f"Working directory: {tmp}")
-    print(f"ASS file: {ass_filename}")
-    print(f"Fonts directory: {ass_file_dir}")
+    print(f"[RENDER] Resolution: {resolution}")
+    print(f"[RENDER] FFmpeg filter: {subtitles_filter}")
+    print(f"[RENDER] Working directory: {tmp}")
+    print(f"[RENDER] ASS file: {ass_filename}")
+    print(f"[RENDER] Fonts directory: {ass_file_dir}")
     
     # Build FFmpeg command
     # The scale filter already handles resolution, so we don't need -s flag
@@ -325,8 +329,32 @@ async def render_video(
             cwd=str(tmp)  # Run FFmpeg from temp directory
         )
         if result.stderr:
-            # Log FFmpeg output for debugging (non-fatal warnings are common)
-            print("FFmpeg output:", result.stderr[:500])  # First 500 chars
+            # Log FFmpeg output for debugging
+            print("[RENDER] FFmpeg output:", result.stderr[:500])  # First 500 chars
+        
+        # Verify output video resolution using ffprobe
+        output_resolution = None
+        try:
+            probe_cmd = [
+                "ffprobe", "-v", "error", "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "json", v_out_filename
+            ]
+            probe_result = subprocess.run(
+                probe_cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=str(tmp)
+            )
+            import json as json_lib
+            probe_data = json_lib.loads(probe_result.stdout)
+            if "streams" in probe_data and len(probe_data["streams"]) > 0:
+                stream = probe_data["streams"][0]
+                output_resolution = f"{stream.get('width')}x{stream.get('height')}"
+                print(f"[RENDER] Output video resolution: {output_resolution}")
+        except Exception as probe_err:
+            print(f"[RENDER] Warning: Could not verify output resolution: {probe_err}")
         
         # Generate thumbnail from rendered video (for poster image)
         try:
@@ -335,7 +363,7 @@ async def render_video(
             # Upload thumbnail to Cloudinary (optional - can return local path for now)
             # For now, we'll return the thumbnail path in the response
         except Exception as thumb_err:
-            print(f"Warning: Failed to generate rendered video thumbnail: {thumb_err}")
+            print(f"[RENDER] Warning: Failed to generate rendered video thumbnail: {thumb_err}")
     except subprocess.CalledProcessError as e:
         error_msg = e.stderr if e.stderr else str(e)
         print(f"FFmpeg error: {error_msg}")
@@ -354,10 +382,12 @@ async def render_video(
             except Exception as e:
                 print(f"Warning: Could not remove temp fonts dir: {e}")
 
-    # Return file name and thumbnail path if generated
+    # Return file name, thumbnail path, and output resolution if available
     response = {"file_name": v_out.name}
     if thumbnail_path and Path(thumbnail_path).exists():
         response["thumbnail_path"] = thumbnail_path
+    if output_resolution:
+        response["output_resolution"] = output_resolution
     
     return response
 
