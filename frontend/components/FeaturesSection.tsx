@@ -1,8 +1,8 @@
 import FeatureCard from "./FeatureCard";
-import featureUpload from "@/assets/feature-upload.png";
-import featureAi from "@/assets/feature-ai.png";
-import featureCustomize from "@/assets/feature-customize.png";
-import featureExport from "@/assets/feature-export.png";
+import featureUpload from "../assets/feature-upload.png";
+import featureAi from "../assets/feature-ai.png";
+import featureCustomize from "../assets/feature-customize.png";
+import featureExport from "../assets/feature-export.png";
 
 const features = [
   {
