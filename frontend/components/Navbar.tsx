@@ -47,7 +47,7 @@ const Navbar = () => {
           <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={handleLogin}>
             Login
           </Button>
-          <Button variant="hero" size="sm" className="rounded-full" onClick={handleTryFree}>
+          <Button variant="hero" size="sm" className="rounded-full bg-purple-400 text-white" onClick={handleTryFree}>
             Try Free
           </Button>
         </div>

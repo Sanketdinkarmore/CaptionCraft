@@ -32,11 +32,11 @@ const HeroSection = () => {
       <div className="container mx-auto max-w-6xl relative">
         {/* Floating badges - decorative, hidden from a11y to avoid "contains emphasized elements" on font-semibold/bold */}
         <div className="absolute top-0 right-0 hidden lg:block z-10" aria-hidden="true">
-          <FloatingBadge rotate={8} className="bg-card border-2 border-primary/20 shadow-xl" decorative>
+          <FloatingBadge rotate={8} className="bg-card border-2 border-primary/20 shadow-xl text-purple-500" decorative>
             <Sparkles className="w-4 h-4 mr-1 text-primary" />
-            <span className="text-xs font-semibold">AI POWERED</span>
+            <span className="text-xs font-semibold ">AI POWERED</span>
           </FloatingBadge>
-          <div className="mt-3 ml-8 bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium shadow-xl animate-float" style={{ animationDelay: '0.5s' }}>
+          <div className="mt-3 ml-8 bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-medium shadow-xl animate-float bg-purple-400" style={{ animationDelay: '0.5s' }}>
             Making Videos
             <br />
             <span className="font-bold text-base">Fun Again! ✨</span>
@@ -75,7 +75,7 @@ const HeroSection = () => {
           
           <h1 className="hero-text text-foreground mb-6 leading-[0.95]">
             <span className="block">CAPTIONS</span>
-            <span className="block text-primary relative">
+            <span className="block text-primary relative text-purple-500">
               ON DEMAND
               <svg className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-48 h-3" viewBox="0 0 200 12" fill="none">
                 <path d="M2 10C50 2 150 2 198 10" stroke="hsl(var(--primary))" strokeWidth="3" strokeLinecap="round" />
