@@ -241,6 +241,14 @@
   animation: marquee 25s linear infinite;
 }
 
+/* MarqueeStrip - 40s duration with hover pause (avoids styled-jsx hydration issues) */
+.marquee-strip-track {
+  animation: marquee 40s linear infinite;
+}
+.marquee-strip-track:hover {
+  animation-play-state: paused;
+}
+
 .animate-fade-in-up {
   animation: fade-in-up 0.7s ease-out forwards;
 }

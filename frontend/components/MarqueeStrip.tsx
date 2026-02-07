@@ -32,16 +32,16 @@ const MarqueeStrip = () => {
       <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
       <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-      {/* Marquee container */}
-      <div className="flex animate-marquee whitespace-nowrap gap-12 relative z-0">
+      {/* Marquee container - inline animation avoids hydration mismatch, runs immediately */}
+      <div
+        className="flex whitespace-nowrap gap-12 relative z-0 hover:[animation-play-state:paused]"
+        style={{ animation: "marquee 40s linear infinite" }}
+      >
         {/* Original set with enhanced styling */}
         {features.map((feature, index) => (
           <div 
             key={`original-${index}`} 
             className="flex items-center gap-3 px-4 py-2 group transition-all duration-300 hover:scale-110 cursor-pointer"
-            style={{
-              animation: `marquee 40s linear infinite`,
-            }}
           >
             {/* Animated icon container */}
             <div className="flex items-center justify-center">
@@ -79,26 +79,6 @@ const MarqueeStrip = () => {
           </div>
         ))}
       </div>
-
-      {/* Optional: Add decorative elements */}
-      <style jsx>{`
-        @keyframes marquee {
-          0% {
-            transform: translateX(0);
-          }
-          100% {
-            transform: translateX(-50%);
-          }
-        }
-
-        .animate-marquee {
-          animation: marquee 40s linear infinite;
-        }
-
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
-      `}</style>
     </div>
   );
 };
