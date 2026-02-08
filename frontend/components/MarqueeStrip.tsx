@@ -17,7 +17,7 @@ const features = [
 
 const MarqueeStrip = () => {
   return (
-    <div className="w-full overflow-hidden relative py-8">
+    <div className="w-full overflow-hidden relative py-5 md:py-6 -mt-px">
       {/* Enhanced gradient background with depth */}
       <div className="absolute inset-0 bg-gradient-to-r from-background via-primary/8 to-background" />
       

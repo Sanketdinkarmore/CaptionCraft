@@ -36,7 +36,7 @@ const features = [
 
 const FeaturesSection = () => {
   return (
-    <section id="features" className="py-28 px-4 relative overflow-hidden">
+    <section id="features" className="py-12 md:py-16 px-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/4 -left-40 w-72 h-72 bg-primary/15 rounded-full blur-3xl opacity-40 animate-float" />
@@ -45,7 +45,7 @@ const FeaturesSection = () => {
 
       <div className="container mx-auto max-w-7xl relative z-10">
         {/* Section header - Bold and modern */}
-        <div className="max-w-2xl mb-20 animate-fade-in-up">
+        <div className="max-w-2xl mb-8 md:mb-12 animate-fade-in-up">
           <span className="inline-block text-xs font-bold uppercase tracking-widest text-primary mb-4">FEATURES</span>
           <h2 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground mb-6">
             Everything you need to <span className="text-primary">captivate</span> your audience
@@ -78,23 +78,23 @@ const FeaturesSection = () => {
           </div>
         </div>
 
-        {/* Bottom CTA section - Elevated design */}
-        <div className="mt-20 pt-20 border-t border-border/30">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+        {/* Stats block - tighter spacing */}
+        <div className="mt-8 md:mt-10 pt-8 md:pt-10 border-t border-border/30">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
             {/* Stat 1 */}
-            <div className="bg-card/50 border border-white/10 rounded-2xl p-8 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
+            <div className="bg-card/50 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
               <p className="text-4xl font-black text-primary mb-3">10,000+</p>
               <p className="text-sm text-muted-foreground font-medium">Creators worldwide</p>
             </div>
 
             {/* Stat 2 */}
-            <div className="bg-card/50 border border-white/10 rounded-2xl p-8 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
+            <div className="bg-card/50 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
               <p className="text-4xl font-black text-primary mb-3">2 Min</p>
               <p className="text-sm text-muted-foreground font-medium">Average processing time</p>
             </div>
 
             {/* Stat 3 */}
-            <div className="bg-card/50 border border-white/10 rounded-2xl p-8 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
+            <div className="bg-card/50 border border-white/10 rounded-2xl p-6 text-center backdrop-blur-md hover:scale-105 transition-transform duration-300">
               <p className="text-4xl font-black text-primary mb-3">99.9%</p>
               <p className="text-sm text-muted-foreground font-medium">Accuracy rate</p>
             </div>

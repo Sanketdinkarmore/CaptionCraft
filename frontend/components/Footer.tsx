@@ -6,7 +6,7 @@ const Footer = () => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="bg-card/50 backdrop-blur-md border-t border-border/30 py-16 px-4 relative overflow-hidden">
+    <footer className="bg-card/50 backdrop-blur-md border-t border-border/30 py-12 md:py-14 px-4 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 right-1/3 w-96 h-96 bg-primary/5 rounded-full blur-3xl opacity-30" />
@@ -14,7 +14,7 @@ const Footer = () => {
 
       <div className="container mx-auto max-w-7xl relative z-10">
         {/* Main footer grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-10 mb-10">
           {/* Brand section */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">

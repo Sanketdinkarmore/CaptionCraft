@@ -22,7 +22,7 @@ const HeroSection = () => {
   const heroImageSrc = typeof heroImage === "string" ? heroImage : heroImage.src;
 
   return (
-    <section className="pt-24 pb-16 px-4 relative overflow-hidden min-h-screen flex items-center">
+    <section className="pt-24 pb-8 md:pb-12 px-4 relative overflow-hidden min-h-[85vh] flex items-center">
       {/* Dynamic gradient mesh background */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 -left-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl opacity-30 animate-morph" />
@@ -166,8 +166,8 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Bottom decoration - Modernized marquee hint */}
-        <div className="mt-20 pt-12 border-t border-border/30 flex items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+        {/* Bottom decoration - flows into marquee */}
+        <div className="mt-12 pt-8 border-t border-border/30 flex items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Trusted by top creators</span>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
