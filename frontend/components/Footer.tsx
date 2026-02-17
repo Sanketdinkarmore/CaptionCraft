@@ -1,6 +1,7 @@
 "use client";
 
-import { Sparkles, Github, Twitter, Linkedin } from "lucide-react";
+import { Github, Twitter, Linkedin } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -17,10 +18,12 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-10 mb-10">
           {/* Brand section */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-primary-foreground" />
-              </div>
+            <div className="flex items-center gap-2.5">
+              <img
+                src={typeof logo === "string" ? logo : logo.src}
+                alt="CaptionCraft logo"
+                className="h-7 w-7 sm:h-8 sm:w-8 object-contain"
+              />
               <span className="text-lg font-black text-foreground">CaptionCraft</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -93,7 +96,7 @@ const Footer = () => {
         </div>
 
         {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mb-2" />
+        <div className="h-px bg-linear-to-r from-transparent via-border to-transparent mb-2" />
 
         {/* Bottom footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">

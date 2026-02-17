@@ -1,10 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Sparkles, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/authClient";
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 
 const Navbar = () => {
   const router = useRouter();
@@ -26,15 +27,19 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/40 backdrop-blur-xl border-b border-border/30 hover:bg-background/50 transition-colors duration-300">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between max-w-7xl">
-        {/* Logo - Modernized */}
-        <div 
-          className="flex items-center gap-3 group cursor-pointer hover:scale-105 transition-transform"
+        {/* Logo */}
+        <div
+          className="flex items-center gap-2.5 group cursor-pointer hover:scale-[1.02] transition-transform"
           onClick={() => router.push("/")}
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg group-hover:shadow-xl transition-shadow">
-            <Sparkles className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="text-lg font-black text-foreground hidden sm:inline tracking-tight">CaptionCraft</span>
+          <img
+            src={typeof logo === "string" ? logo : logo.src}
+            alt="CaptionCraft logo"
+            className="h-10 w-10 sm:h-11 sm:w-11 object-contain"
+          />
+          <span className="text-base sm:text-xl font-black text-foreground hidden sm:inline tracking-tight leading-none">
+            CaptionCraft
+          </span>
         </div>
         
         {/* Navigation Links - Hidden on mobile */}

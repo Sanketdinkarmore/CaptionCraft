@@ -5,6 +5,74 @@ import heroImage from "@/assets/hero-video-editing.png";
 import { ArrowRight, Play, Sparkles, Star, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/authClient";
+import { useEffect, useState } from "react";
+
+const heroWords = ["effortless", "loud", "on-brand"];
+
+const TypewriterHeadline = () => {
+  const [text, setText] = useState("");
+  const [wordIndex, setWordIndex] = useState(0);
+  const [prefersReduced, setPrefersReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReduced(mq.matches);
+
+    const handler = (event: MediaQueryListEvent) => {
+      setPrefersReduced(event.matches);
+    };
+
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  useEffect(() => {
+    const currentWord = heroWords[wordIndex];
+    let typingId: number | undefined;
+    let holdId: number | undefined;
+
+    if (prefersReduced) {
+      setText(currentWord);
+      holdId = window.setTimeout(() => {
+        setWordIndex((prev) => (prev + 1) % heroWords.length);
+      }, 2000);
+    } else {
+      setText("");
+      let charIndex = 0;
+
+      typingId = window.setInterval(() => {
+        charIndex += 1;
+        setText(currentWord.slice(0, charIndex));
+
+        if (charIndex >= currentWord.length && typingId !== undefined) {
+          window.clearInterval(typingId);
+          typingId = undefined;
+
+          holdId = window.setTimeout(() => {
+            setWordIndex((prev) => (prev + 1) % heroWords.length);
+          }, 1200);
+        }
+      }, 90);
+    }
+
+    return () => {
+      if (typingId !== undefined) {
+        window.clearInterval(typingId);
+      }
+      if (holdId !== undefined) {
+        window.clearTimeout(holdId);
+      }
+    };
+  }, [wordIndex, prefersReduced]);
+
+  return (
+    <span className="hero-gradient-text inline-block min-w-[7ch]">
+      {text || "\u00A0"}
+    </span>
+  );
+};
 
 const HeroSection = () => {
   const router = useRouter();
@@ -76,7 +144,7 @@ const HeroSection = () => {
                 </span>
                 <span className="block">
                   feel{" "}
-                  <span className="hero-gradient-text">effortless</span>
+                  <TypewriterHeadline />
                 </span>
               </h1>
 
