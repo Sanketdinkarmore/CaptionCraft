@@ -3,12 +3,14 @@
 import { Button } from "@/components/ui/button";
 import FloatingBadge from "./FloatingBadge";
 import heroImage from "@/assets/hero-video-editing.png";
-import { Play, Sparkles, Zap, ArrowRight } from "lucide-react";
+import { Play, Sparkles, Zap, ArrowRight, Zap as ZapIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/authClient";
+import { useState } from "react";
 
 const HeroSection = () => {
   const router = useRouter();
+  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
 
   const handleStartCreating = () => {
     const token = getToken();
@@ -22,86 +24,82 @@ const HeroSection = () => {
   const heroImageSrc = typeof heroImage === "string" ? heroImage : heroImage.src;
 
   return (
-    <section className="pt-24 pb-8 md:pb-12 px-4 relative overflow-hidden min-h-[85vh] flex items-center">
-      {/* Dynamic gradient mesh background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 -left-40 w-80 h-80 bg-primary/20 rounded-full blur-3xl opacity-30 animate-morph" />
-        <div className="absolute top-1/2 -right-32 w-96 h-96 bg-accent/25 rounded-full blur-3xl opacity-25 animate-float" style={{ animationDelay: '1s' }} />
-        <div className="absolute bottom-0 left-1/2 w-72 h-72 bg-primary/15 rounded-full blur-3xl opacity-20" />
+    <section className="pt-16 pb-12 md:pb-16 px-4 relative overflow-hidden min-h-screen flex items-center">
+      {/* Organic background - subtle and dynamic */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Top-left organic blob */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-gradient-to-br from-primary/15 to-transparent rounded-[45% 55% 60% 40% / 55% 45% 55% 45%] blur-3xl animate-blob opacity-40" />
+        
+        {/* Center-right organic shape */}
+        <div className="absolute top-1/3 -right-40 w-80 h-80 bg-gradient-to-bl from-accent/20 to-transparent rounded-[30% 70% 70% 30% / 30% 30% 70% 70%] blur-3xl animate-blob opacity-30" style={{ animationDelay: '2s' }} />
+        
+        {/* Bottom organic element */}
+        <div className="absolute -bottom-40 left-1/4 w-96 h-96 bg-gradient-to-tr from-primary/10 to-transparent rounded-[60% 40% 30% 70% / 60% 30% 70% 40%] blur-3xl animate-blob opacity-25" style={{ animationDelay: '4s' }} />
       </div>
 
       <div className="container mx-auto max-w-7xl relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left Column - Content */}
           <div className="space-y-8">
-            {/* Top badge with animation */}
+            {/* Badge - Subtle and elegant */}
             <div className="inline-block animate-fade-in-up">
-              <div className="flex items-center gap-2 bg-accent/40 border border-primary/30 rounded-full px-4 py-2 backdrop-blur-sm hover:bg-accent/60 transition-colors duration-300 cursor-pointer">
-                <Sparkles className="w-4 h-4 text-primary hover:animate-spin transition-all" />
+              <div className="flex items-center gap-2 bg-primary/8 border border-primary/25 rounded-full px-4 py-2.5 backdrop-blur-md hover:bg-primary/12 transition-all duration-500 cursor-pointer group">
+                <Sparkles className="w-4 h-4 text-primary group-hover:scale-110 transition-transform duration-500" />
                 <span className="text-sm font-medium text-foreground">AI-Powered Hinglish Captions</span>
-                <ArrowRight className="w-3.5 h-3.5 text-primary opacity-0 hover:opacity-100 transition-opacity" />
+                <ArrowRight className="w-3.5 h-3.5 text-primary opacity-60 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-500" />
               </div>
             </div>
 
-            {/* Main Headline - Bold and distinctive */}
+            {/* Main Headline - Bold, expressive, responsive */}
             <div className="space-y-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-              <h1 className="font-display text-6xl md:text-7xl lg:text-8xl font-bold tracking-tighter leading-[0.9] text-foreground">
-                <span className="block relative text-purple-500">
-                  Subtitles
-                  <span className="absolute -bottom-3 left-0 w-32 h-1 bg-gradient-to-r from-primary via-primary to-transparent rounded-full blur-sm opacity-60" />
-                </span>
-                <span className="block text-primary relative mt-4 ">
-                  Made Simple
-                  {/* Decorative line */}
-                  <svg className="absolute -bottom-4 left-0 w-full h-8" viewBox="0 0 300 30" fill="none" preserveAspectRatio="none">
-                    <path 
-                      d="M2 15Q75 5 150 15T298 15" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth="4" 
-                      fill="none"
-                      opacity="0.4"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  </svg>
-                </span>
-              </h1>
+              <div className="relative">
+                <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-7xl font-bold tracking-tight leading-[1.1] text-foreground">
+                  <span className="block bg-clip-text text-transparent bg-gradient-to-r from-foreground via-primary to-foreground pb-2">
+                    Captions
+                  </span>
+                  <span className="block text-foreground">that feel real</span>
+                </h1>
+                
+                {/* Accent line - organic shape */}
+                <div className="absolute -bottom-6 left-0 h-1.5 w-32 bg-gradient-to-r from-primary via-primary to-transparent rounded-full blur-sm opacity-70" />
+              </div>
             </div>
 
             {/* Subheading */}
             <p className="text-lg md:text-xl text-muted-foreground max-w-lg leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-              Upload your video, get <span className="text-foreground font-semibold text-purple-700">intelligent Hinglish captions</span> in seconds. Customize, export, and ship.
+              Upload your video, get <span className="text-foreground font-semibold">intelligent Hinglish subtitles</span> in seconds. Customize, export, and ship faster.
             </p>
 
-            {/* CTA Buttons - Bold and modern */}
-            <div className="flex flex-col sm:flex-row items-start gap-4 pt-4 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+            {/* CTA Buttons - Modern stacked design */}
+            <div className="flex flex-col sm:flex-row items-start gap-3 pt-2 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
               <Button 
                 variant="hero" 
                 size="xl" 
-                className="rounded-xl uppercase tracking-widest font-bold shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1" 
+                className="rounded-xl font-bold shadow-lg hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 group w-full sm:w-auto"
                 onClick={handleStartCreating}
               >
-                <Play className="w-5 h-5 mr-3 hover:scale-125 transition-transform" />
+                <Play className="w-5 h-5 mr-2 group-hover:scale-125 transition-transform duration-500" />
                 Start Creating
               </Button>
               <Button 
                 variant="heroOutline" 
                 size="xl" 
-                className="rounded-xl font-semibold uppercase tracking-wider transition-all hover:translate-x-1"
+                className="rounded-xl font-semibold transition-all duration-500 hover:translate-x-1 group w-full sm:w-auto"
               >
                 See Demo
-                <ArrowRight className="w-4 h-4 ml-2 transition-transform" />
+                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-500" />
               </Button>
             </div>
 
-            {/* Social proof - Modernized */}
-            <div className="pt-8 border-t border-border/50 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-              <p className="text-sm text-muted-foreground mb-3 font-medium">TRUSTED BY CREATORS</p>
-              <div className="flex items-center gap-4">
-                <div className="flex -space-x-2">
-                  {['😊', '🎉', '💜', '⭐', '🚀'].map((emoji, i) => (
+            {/* Social proof - Modern layout */}
+            <div className="pt-8 border-t border-border/40 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+              <p className="text-xs text-muted-foreground mb-4 font-semibold tracking-widest uppercase">Trusted by creators</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex -space-x-3">
+                  {['👩‍🎬', '🎥', '✨', '🎭', '🚀'].map((emoji, i) => (
                     <div 
                       key={i} 
-                      className="w-10 h-10 rounded-full bg-card border-2 border-background flex items-center justify-center text-base shadow-md hover:scale-110 hover:-translate-y-1 transition-all duration-300 cursor-pointer"
+                      className="w-11 h-11 rounded-full bg-card border-2 border-background flex items-center justify-center text-lg shadow-md hover:scale-125 hover:-translate-y-2 transition-all duration-300 cursor-pointer"
                     >
                       {emoji}
                     </div>
@@ -112,53 +110,69 @@ const HeroSection = () => {
             </div>
           </div>
 
-          {/* Right Column - Hero Image with floating elements */}
-          <div className="relative h-full min-h-[500px] lg:min-h-[600px] animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            {/* Floating background elements */}
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-primary/10 rounded-3xl blur-2xl rotate-45 animate-float" />
-            <div className="absolute -bottom-32 left-1/2 w-80 h-80 bg-accent/15 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }} />
+          {/* Right Column - Visual showcase with dynamic elements */}
+          <div className="relative h-auto min-h-[400px] md:min-h-[500px] lg:min-h-[600px] animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+            {/* Asymmetrical floating shapes - more organic */}
+            <div className="absolute -top-16 -right-16 w-72 h-72 bg-gradient-to-br from-primary/10 to-transparent rounded-[40% 60% 70% 30% / 40% 50% 60% 50%] blur-2xl animate-blob opacity-50" />
+            <div className="absolute -bottom-32 left-0 w-96 h-96 bg-gradient-to-tr from-accent/8 to-transparent rounded-[50% 50% 40% 60% / 55% 45% 55% 45%] blur-3xl animate-blob opacity-35" style={{ animationDelay: '3s' }} />
 
-            {/* Main image container - Asymmetrical positioning */}
-            <div className="relative h-full flex items-center justify-end">
-              {/* Image with border and shadow */}
-              <div className="relative w-full max-w-md hover:scale-105 transition-transform duration-300">
-                {/* Glow effect behind image */}
-                <div className="absolute -inset-8 bg-gradient-to-r from-primary/30 via-accent/20 to-primary/30 rounded-3xl blur-2xl opacity-0 hover:opacity-100 transition-opacity duration-500" />
+            {/* Main showcase card - Tilted asymmetrical design */}
+            <div className="relative h-full flex items-center justify-center lg:justify-end perspective">
+              <div 
+                className="relative w-full max-w-md transform transition-all duration-500 hover:scale-105"
+                onMouseEnter={() => setHoveredCard(1)}
+                onMouseLeave={() => setHoveredCard(null)}
+              >
+                {/* Enhanced glow effect on hover */}
+                <div className={`absolute -inset-6 bg-gradient-to-r from-primary via-accent to-primary rounded-3xl blur-2xl opacity-0 transition-all duration-500 ${hoveredCard === 1 ? 'opacity-40' : 'opacity-0'}`} />
                 
-                {/* Main image */}
-                <div className="relative rounded-3xl overflow-hidden border-2 border-border/50 shadow-2xl">
+                {/* Main image card */}
+                <div className="relative rounded-3xl overflow-hidden border-2 border-border/50 shadow-2xl backdrop-blur-sm">
                   <img
                     src={heroImageSrc}
                     alt="Video editing workspace with Hinglish subtitles"
-                    className="w-full h-auto transition-transform duration-300 hover:scale-110"
+                    className="w-full h-auto transition-transform duration-500 hover:scale-110"
                   />
                   
-                  {/* Scan line effect on hover */}
-                  <div className="absolute inset-0 bg-gradient-to-b from-white/0 via-white/5 to-white/0 pointer-events-none opacity-0 hover:opacity-100 transition-opacity duration-500" />
+                  {/* Overlay gradient on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 </div>
 
-                {/* Floating stat card - Top right */}
-                <div className="absolute -top-6 -right-8 bg-card/50 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-md animate-float" style={{ animationDelay: '0.8s' }}>
+                {/* Floating stat cards - Positioned asymmetrically */}
+                {/* Top floating card */}
+                <div 
+                  className={`absolute -top-8 -right-6 bg-card/80 border border-border/50 rounded-2xl p-4 shadow-lg backdrop-blur-lg transform transition-all duration-500 animate-float ${hoveredCard === 1 ? 'scale-110 shadow-2xl' : ''}`}
+                  style={{ animationDelay: '0s' }}
+                >
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+                    <div className="relative w-2.5 h-2.5">
+                      <div className="absolute inset-0 rounded-full bg-primary animate-pulse" />
+                      <div className="absolute inset-0 rounded-full bg-primary/30 animate-blob" />
+                    </div>
                     <div>
-                      <p className="text-xs font-bold text-foreground tracking-wide">LIVE</p>
+                      <p className="text-xs font-bold text-foreground tracking-widest">LIVE</p>
                       <p className="text-xs text-muted-foreground">Auto-syncing</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Floating stat card - Bottom left */}
-                <div className="absolute -bottom-4 -left-12 bg-primary text-primary-foreground rounded-2xl px-5 py-3 shadow-xl animate-float" style={{ animationDelay: '0.8s' }}>
+                {/* Bottom left stat card */}
+                <div 
+                  className={`absolute -bottom-6 -left-4 bg-gradient-to-br from-primary to-accent text-primary-foreground rounded-2xl px-6 py-4 shadow-lg transform transition-all duration-500 animate-float ${hoveredCard === 1 ? 'scale-110 shadow-2xl' : ''}`}
+                  style={{ animationDelay: '1s' }}
+                >
                   <p className="text-sm font-black">+500</p>
-                  <p className="text-xs opacity-90">Generated today</p>
+                  <p className="text-xs opacity-90 font-medium">Generated today</p>
                 </div>
 
-                {/* Speed badge - Right side */}
-                <div className="absolute top-1/2 -right-16 bg-card/50 border border-white/10 rounded-full px-4 py-3 shadow-lg backdrop-blur-md animate-float" style={{ animationDelay: '0.8s' }}>
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span className="text-xs font-semibold text-foreground">Fast</span>
+                {/* Right side badge */}
+                <div 
+                  className={`absolute top-1/2 -right-20 lg:-right-24 bg-card/80 border border-border/50 rounded-full px-4 py-3 shadow-lg backdrop-blur-lg transform transition-all duration-500 animate-float ${hoveredCard === 1 ? 'scale-110 shadow-2xl' : ''}`}
+                  style={{ animationDelay: '0.5s' }}
+                >
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <ZapIcon className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-bold text-foreground">Lightning Fast</span>
                   </div>
                 </div>
               </div>
@@ -166,11 +180,11 @@ const HeroSection = () => {
           </div>
         </div>
 
-        {/* Bottom decoration - flows into marquee */}
-        <div className="mt-12 pt-8 border-t border-border/30 flex items-center justify-center gap-3 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Trusted by top creators</span>
-          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
+        {/* Bottom divider - Organic shape */}
+        <div className="mt-16 pt-12 border-t border-border/40 flex items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+          <div className="h-px flex-1 max-w-xs bg-gradient-to-r from-transparent via-border to-border" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Loved by content creators</span>
+          <div className="h-px flex-1 max-w-xs bg-gradient-to-l from-transparent via-border to-border" />
         </div>
       </div>
     </section>

@@ -228,6 +228,21 @@
   100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
 }
 
+@keyframes blob {
+  0%, 100% { 
+    transform: translate(0, 0) scale(1);
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  34% { 
+    transform: translate(30px, -50px) scale(1.1);
+    border-radius: 70% 30% 66% 33% / 33% 66% 33% 67%;
+  }
+  67% { 
+    transform: translate(-20px, 30px) scale(0.9);
+    border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%;
+  }
+}
+
 @keyframes scan-line {
   0% { transform: translateY(-100%); }
   100% { transform: translateY(100%); }
@@ -235,6 +250,10 @@
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+.animate-blob {
+  animation: blob 7s ease-in-out infinite;
 }
 
 .animate-marquee {
