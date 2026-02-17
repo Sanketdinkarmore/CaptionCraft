@@ -64,7 +64,7 @@ const CTABanner = () => {
                 <Button
                   variant="hero"
                   size="xl"
-                  className="rounded-xl font-bold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 w-full sm:w-auto border-3"
+                  className="rounded-xl font-bold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 w-full sm:w-auto border-4"
                   onClick={handleStart}
                 >
                   <Play className="w-5 h-5 mr-2" />
