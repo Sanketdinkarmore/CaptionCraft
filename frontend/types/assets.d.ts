@@ -17,3 +17,8 @@ declare module "*.svg" {
   const value: { src: string; height?: number; width?: number };
   export default value;
 }
+
+declare module "*.mp4" {
+  const src: string;
+  export default src;
+}

@@ -1,10 +1,15 @@
 "use client";
 
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Play, ArrowRight, Sparkles, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/authClient";
+
+// Use Cloudinary URL for faster CDN loading (recommended). Your cloud: drsitovda
+// Set NEXT_PUBLIC_CTA_VIDEO_URL in .env.local when you upload to Cloudinary
+// e.g. https://res.cloudinary.com/drsitovda/video/upload/f_auto,q_auto/v1/captioncraft/cta-video.mp4
+const CTA_VIDEO_SRC =
+  process.env.NEXT_PUBLIC_CTA_VIDEO_URL 
 
 const CTABanner = () => {
   const router = useRouter();
@@ -59,7 +64,7 @@ const CTABanner = () => {
                 <Button
                   variant="hero"
                   size="xl"
-                  className="rounded-xl font-bold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 w-full sm:w-auto"
+                  className="rounded-xl font-bold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all hover:-translate-y-0.5 w-full sm:w-auto border-3"
                   onClick={handleStart}
                 >
                   <Play className="w-5 h-5 mr-2" />
@@ -79,16 +84,18 @@ const CTABanner = () => {
               </div>
             </div>
 
-            {/* Image - right side - visible on md+ screens */}
+            {/* Video - right side - visible on md+ screens */}
             <div className="hidden md:flex lg:col-span-5 relative items-stretch justify-center p-6 overflow-hidden min-h-[200px]">
               <div className="relative w-full min-w-[200px] min-h-[200px] rounded-2xl overflow-hidden border border-primary/20 shadow-xl ring-2 ring-primary/10">
-                <Image
-                  src="https://images.unsplash.com/photo-1557683316-e9739b4c8d90?w=600&q=85"
-                  alt="Creative purple gradient - CaptionCraft theme"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 0vw, (max-width: 1024px) 300px, 400px"
-                  unoptimized
+                <video
+                  src={CTA_VIDEO_SRC}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                  preload="metadata"
+                  aria-label="CaptionCraft demo - creative video captions"
                 />
                 <div className="absolute inset-0 bg-gradient-to-l from-background/40 via-transparent to-transparent" />
                 {/* Subtle overlay card */}
