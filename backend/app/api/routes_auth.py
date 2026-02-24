@@ -9,13 +9,18 @@ from app.services.auth_service import (
     create_access_token,
     decode_token,
     verify_google_id_token,
+    create_password_reset_token,
+    decode_password_reset_token,
 )
 from app.services.user_service import (
     get_user_by_email,
     get_user_by_id,
     get_user_by_google_id,
     create_user,
+    update_user_password,
 )
+from app.services.email_service import send_password_reset_email
+from app.config import settings
 
 
 router = APIRouter(tags=["auth"])
@@ -41,6 +46,15 @@ class LoginRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     credential: str  # Google ID token from Google Identity Services
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme)):
@@ -130,5 +144,47 @@ async def google_login(body: GoogleLoginRequest):
 @router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
     return {"id": str(user.id), "email": user.email, "name": user.name}
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest):
+    """
+    Always returns success to avoid leaking whether the email exists.
+    In dev (SMTP not configured), it prints the reset link to the backend console.
+    """
+    user = await get_user_by_email(body.email)
+    if user:
+        token = create_password_reset_token({"sub": str(user.id), "email": user.email})
+        reset_link = f"{settings.FRONTEND_BASE_URL}/reset-password?token={token}"
+        await send_password_reset_email(to_email=user.email, reset_link=reset_link)
+    return {"ok": True}
+
+
+@router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordRequest):
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    try:
+        payload = decode_password_reset_token(body.token)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid token")
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    new_hash = hash_password(body.new_password)
+    await update_user_password(str(user.id), new_hash)
+
+    # Optional: auto-login after reset
+    token = create_access_token({"sub": str(user.id), "email": user.email})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {"id": str(user.id), "email": user.email, "name": user.name},
+    }
 
 

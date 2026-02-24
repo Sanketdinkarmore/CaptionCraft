@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/api";
 
 export type AuthUser = {
   id: string;
@@ -71,6 +71,32 @@ export async function me(): Promise<AuthUser> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Not authenticated");
+  return res.json();
+}
+
+export async function forgotPassword(email: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || "Request failed");
+  }
+  return res.json();
+}
+
+export async function resetPassword(token: string, new_password: string): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Reset failed" }));
+    throw new Error(err.detail || "Reset failed");
+  }
   return res.json();
 }
 

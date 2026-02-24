@@ -53,3 +53,14 @@ async def update_user_google_link(user_id: ObjectId, google_id: str) -> None:
     )
 
 
+async def update_user_password(user_id: str, new_password_hash: str) -> None:
+    db = get_database()
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return
+    await db["users"].update_one(
+        {"_id": oid},
+        {"$set": {"password_hash": new_password_hash, "updated_at": datetime.utcnow()}},
+    )
+

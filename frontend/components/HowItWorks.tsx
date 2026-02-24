@@ -49,7 +49,7 @@ const HowItWorks = () => {
     if (!autoPlay) return;
     const timer = setInterval(() => {
       setSelectedTab((prev) => (prev + 1) % steps.length);
-    }, 5000);
+    }, 2000);
     return () => clearInterval(timer);
   }, [autoPlay]);
 

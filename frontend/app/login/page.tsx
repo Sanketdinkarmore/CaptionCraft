@@ -90,6 +90,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className="mt-3">
+          <a className="text-sm text-gray-300 underline" href="/forgot-password">
+            Forgot password?
+          </a>
+        </div>
+
         <div className="my-4 border-t border-gray-800" />
 
         <div className="space-y-2">

@@ -38,6 +38,33 @@ def decode_token(token: str) -> dict[str, Any]:
         raise ValueError("Invalid or expired token") from e
 
 
+def create_password_reset_token(subject: dict[str, Any], expires_minutes: Optional[int] = None) -> str:
+    """
+    Creates a short-lived token intended only for password reset.
+    """
+    expires = expires_minutes if expires_minutes is not None else settings.RESET_PASSWORD_EXPIRES_MINUTES
+    now = datetime.now(timezone.utc)
+    secret = settings.RESET_PASSWORD_SECRET_KEY or settings.JWT_SECRET_KEY
+    payload = {
+        **subject,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=expires)).timestamp()),
+        "scope": "password_reset",
+    }
+    return jwt.encode(payload, secret, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> dict[str, Any]:
+    try:
+        secret = settings.RESET_PASSWORD_SECRET_KEY or settings.JWT_SECRET_KEY
+        payload = jwt.decode(token, secret, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("scope") != "password_reset":
+            raise ValueError("Invalid reset token")
+        return payload
+    except JWTError as e:
+        raise ValueError("Invalid or expired reset token") from e
+
+
 def verify_google_id_token(credential: str) -> dict[str, Any]:
     """
     Verifies a Google ID token (credential) from Google Identity Services.
