@@ -1530,8 +1530,13 @@ export default function EditorPage() {
           padding: 9px 16px;
           border-bottom: 1px solid rgba(255,255,255,0.04);
           flex-shrink: 0;
+          flex-wrap: wrap;
         }
-        .cc-project-title-wrap { flex: 1; min-width: 0; }
+        .cc-project-title-wrap {
+          flex-basis: 100%;
+          min-width: 0;
+          margin-bottom: 4px;
+        }
         .cc-project-input {
           width: 100%;
           background: transparent; border: none; outline: none;
@@ -1540,7 +1545,13 @@ export default function EditorPage() {
           letter-spacing: -0.2px;
         }
         .cc-project-input::placeholder { color: #2d3748; }
-        .cc-project-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .cc-project-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-shrink: 0;
+          margin-left: auto;
+        }
         .cc-project-collection-pill {
           display: flex;
           align-items: center;
