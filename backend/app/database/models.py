@@ -94,6 +94,7 @@ class ProjectCreate(ProjectBase):
     segments: List[Segment] = Field(default_factory=list)
     global_style: Optional[GlobalStyle] = None
     thumbnail_url: Optional[str] = None
+    collection_id: Optional[str] = None
 
 class ProjectInDB(ProjectBase):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
@@ -108,6 +109,7 @@ class ProjectInDB(ProjectBase):
     share_token: Optional[str] = None  # Unique token for sharing
     shared_with: List[PyObjectId] = Field(default_factory=list)  # List of user IDs with access
     is_public: bool = False  # Public sharing flag
+    collection_id: Optional[PyObjectId] = None
     
     class Config:
         populate_by_name = True
@@ -121,6 +123,7 @@ class ProjectUpdate(BaseModel):
     video_filename: Optional[str] = None
     video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
+    collection_id: Optional[str] = None
 
 class ProjectResponse(ProjectBase):
     id: str
@@ -134,7 +137,44 @@ class ProjectResponse(ProjectBase):
     thumbnail_url: Optional[str] = None
     share_token: Optional[str] = None
     is_public: bool = False
+    collection_id: Optional[str] = None
     
+    class Config:
+        from_attributes = True
+
+
+# ==================== Collection Models ====================
+
+class CollectionBase(BaseModel):
+    name: str
+
+
+class CollectionCreate(CollectionBase):
+    user_id: Optional[str] = None
+
+
+class CollectionInDB(CollectionBase):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    user_id: PyObjectId
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+
+class CollectionUpdate(BaseModel):
+    name: Optional[str] = None
+
+
+class CollectionResponse(CollectionBase):
+    id: str
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+
     class Config:
         from_attributes = True
 

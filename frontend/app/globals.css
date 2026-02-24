@@ -339,6 +339,198 @@
   }
 }
 
+/* ==========================================================================
+   Caption Editor – app-wide shell that matches landing theme
+   Inspired by Evenflow-style studio layout
+   ========================================================================== */
+
+.editor-shell {
+  background: radial-gradient(
+      circle at top left,
+      hsl(var(--primary) / 0.06),
+      transparent 55%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(236, 72, 153, 0.06),
+      transparent 55%
+    ),
+    hsl(var(--background));
+}
+
+.editor-header {
+  @apply flex items-center justify-between px-4 py-3 lg:px-8 lg:py-4 border-b;
+  background: rgba(15, 23, 42, 0.9);
+  box-shadow:
+    0 10px 40px rgba(15, 23, 42, 0.45),
+    0 0 0 1px rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(18px);
+}
+
+.editor-header-title {
+  @apply flex items-center gap-2;
+}
+
+.editor-header-logo {
+  @apply flex items-center justify-center text-xs font-bold text-white rounded-xl;
+  background: radial-gradient(circle at 0% 0%, #a855f7, #6366f1);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 10px 25px rgba(129, 140, 248, 0.55);
+}
+
+.editor-header-text {
+  @apply flex flex-col;
+}
+
+.editor-header-text span:first-child {
+  @apply text-sm font-semibold text-slate-50;
+}
+
+.editor-header-text span:last-child {
+  @apply text-xs text-slate-400;
+}
+
+.editor-main {
+  @apply flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 pb-6 pt-4 lg:px-8 lg:pb-10 lg:pt-6;
+}
+
+.editor-sidebar {
+  @apply w-full lg:w-[360px] xl:w-[420px] shrink-0;
+}
+
+.editor-sidebar-card {
+  @apply h-full rounded-2xl border overflow-hidden;
+  background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.17), transparent 55%),
+    rgba(15, 23, 42, 0.98);
+  box-shadow:
+    0 18px 45px rgba(15, 23, 42, 0.65),
+    0 0 0 1px rgba(148, 163, 184, 0.35);
+}
+
+.editor-sidebar-inner {
+  @apply flex flex-col h-full p-4 sm:p-5 gap-3;
+}
+
+.editor-sidebar-header {
+  @apply flex items-center justify-between gap-2;
+}
+
+.editor-sidebar-title {
+  @apply flex items-center gap-2;
+}
+
+.editor-sidebar-title h1 {
+  @apply text-sm font-semibold text-slate-50;
+}
+
+.editor-sidebar-pill {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium text-slate-300;
+  background: radial-gradient(circle at 0% 0%, rgba(129, 140, 248, 0.4), rgba(15, 23, 42, 0.95));
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.4);
+}
+
+.editor-sidebar-body {
+  @apply flex-1 flex flex-col gap-3 overflow-hidden;
+}
+
+.editor-tabs {
+  @apply inline-flex rounded-full bg-slate-900/70 p-1 text-xs;
+  box-shadow:
+    0 0 0 1px rgba(51, 65, 85, 0.55),
+    0 10px 30px rgba(15, 23, 42, 0.8);
+}
+
+.editor-tab {
+  @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-medium text-slate-400 transition-colors;
+}
+
+.editor-tab-active {
+  @apply bg-slate-50 text-slate-900;
+}
+
+.editor-upload-zone {
+  @apply mt-2 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-600/80 px-3 py-3 text-xs text-slate-300 cursor-pointer;
+  background: radial-gradient(circle at 0% 0%, rgba(148, 163, 184, 0.25), rgba(15, 23, 42, 0.9));
+  box-shadow:
+    0 0 0 1px rgba(148, 163, 184, 0.4),
+    0 12px 28px rgba(15, 23, 42, 0.9);
+}
+
+.editor-upload-zone:hover {
+  border-color: rgba(129, 140, 248, 0.9);
+  box-shadow:
+    0 0 0 1px rgba(129, 140, 248, 0.9),
+    0 16px 40px rgba(79, 70, 229, 0.75);
+}
+
+.editor-actions-row {
+  @apply flex flex-wrap gap-2 mt-2;
+}
+
+.editor-pill-button {
+  @apply inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-medium border transition-all;
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.7);
+}
+
+.editor-pill-button-primary {
+  background: linear-gradient(135deg, #4f46e5, #a855f7);
+  color: #f9fafb;
+  border-color: transparent;
+  box-shadow:
+    0 0 0 1px rgba(191, 219, 254, 0.3),
+    0 12px 30px rgba(79, 70, 229, 0.7);
+}
+
+.editor-pill-button-danger {
+  background: radial-gradient(circle at 0% 0%, #b91c1c, #ef4444);
+  color: #fee2e2;
+  border-color: transparent;
+}
+
+.editor-list {
+  @apply mt-2 flex-1 overflow-y-auto space-y-2 pr-1;
+}
+
+.editor-list-item {
+  @apply rounded-xl border px-3 py-2 cursor-pointer transition-colors;
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(51, 65, 85, 0.9);
+}
+
+.editor-list-item-active {
+  background: radial-gradient(circle at 0% 0%, rgba(129, 140, 248, 0.55), rgba(15, 23, 42, 0.95));
+  border-color: rgba(129, 140, 248, 0.95);
+}
+
+.editor-preview {
+  @apply flex-1 flex items-center justify-center;
+}
+
+.editor-preview-frame {
+  @apply relative inline-flex items-center justify-center rounded-[2.25rem] border overflow-hidden;
+  background: radial-gradient(circle at 0% 0%, rgba(148, 163, 184, 0.4), rgba(15, 23, 42, 1));
+  border-color: rgba(30, 64, 175, 0.9);
+  box-shadow:
+    0 24px 80px rgba(15, 23, 42, 0.95),
+    0 0 0 1px rgba(148, 163, 184, 0.5);
+}
+
+.editor-preview-video {
+  @apply rounded-[2rem] bg-black;
+}
+
+.editor-preview-low-res-tag {
+  @apply absolute top-3 left-3 rounded-full bg-slate-900/80 px-2.5 py-1 text-[10px] font-medium text-slate-200 border border-slate-600/80;
+}
+
+.editor-preview-empty {
+  @apply text-sm text-slate-500;
+}
+
+
 /* ═══════════════════════════════════════════════════════════════════════════
    How It Works – LIGHT THEME WITH HIGHLY VISIBLE TEXT IN PURPLE BOX
    White background + Solid darker purple box with maximum text contrast

@@ -30,13 +30,18 @@ async def save_project(project: ProjectCreate, user=Depends(get_current_user)):
 
 
 @router.get("/projects", response_model=List[ProjectResponse])
-async def list_projects(user=Depends(get_current_user)):
-    """Get all projects for the current user"""
+async def list_projects(
+    collection_id: Optional[str] = Query(None),
+    user=Depends(get_current_user),
+):
+    """Get all projects for the current user, optionally filtered by collection."""
     try:
-        projects = await get_projects(user_id=str(user.id))
+        projects = await get_projects(user_id=str(user.id), collection_id=collection_id)
         return projects
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch projects: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch projects: {str(e)}"
+        )
 
 
 @router.get("/projects/{project_id}", response_model=ProjectResponse)

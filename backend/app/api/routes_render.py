@@ -256,17 +256,12 @@ async def render_video(
 
     ass_file.write_text(build_ass(seg_models, g_style), encoding="utf-8")
 
-    # IMPORTANT: The 'fontsdir' parameter doesn't exist in FFmpeg's subtitles filter!
-    # Instead, we need to:
-    # 1. Copy fonts to the same directory as the ASS file (libass looks there)
-    # 2. Use fontconfig environment variables
-    # 3. Or rely on system fonts
-    
+    # libass (used by FFmpeg subtitles filter) needs fontsdir on Windows - it does NOT
+    # use fontconfig there. The fontsdir option explicitly tells libass where to find fonts.
     import shutil
     ass_file_dir = ass_file.parent
     
     # Copy bundled fonts to the same directory as the ASS file
-    # libass (used by FFmpeg subtitles filter) will look for fonts in the ASS file's directory
     if FONTS_DIR.exists():
         for font_file in FONTS_DIR.glob("*.ttf"):
             try:
@@ -286,26 +281,30 @@ async def render_video(
     
     # Build filter chain with optional scaling based on resolution
     # Apply scaling BEFORE subtitles for better quality
+    # fontsdir=. tells libass to load fonts from current dir (critical on Windows where fontconfig is not used)
+    subtitles_part = f"subtitles={ass_filename}:fontsdir=."
     if resolution == "720p":
         # Scale to 720p, then apply subtitles
-        subtitles_filter = f"scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,subtitles={ass_filename}"
+        subtitles_filter = f"scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,{subtitles_part}"
     elif resolution == "1080p":
         # Scale to 1080p, then apply subtitles
-        subtitles_filter = f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,subtitles={ass_filename}"
+        subtitles_filter = f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,{subtitles_part}"
     else:
         # "original" means no scaling, just subtitles
-        subtitles_filter = f"subtitles={ass_filename}"
+        subtitles_filter = subtitles_part
     
     # Set up fontconfig environment
     env = os.environ.copy()
     env["FONTCONFIG_PATH"] = str(ass_file_dir.resolve())
     
     # Debug output
+    resolved_font = get_font_name(g_style.get("fontFamily", "Arial"))
     print(f"[RENDER] Resolution: {resolution}")
+    print(f"[RENDER] Font requested: {g_style.get('fontFamily', 'Arial')} -> ASS Fontname: {resolved_font}")
+    print(f"[RENDER] FONTS_DIR exists: {FONTS_DIR.exists()}, fonts copied: {list(ass_file_dir.glob('*.ttf'))}")
     print(f"[RENDER] FFmpeg filter: {subtitles_filter}")
     print(f"[RENDER] Working directory: {tmp}")
     print(f"[RENDER] ASS file: {ass_filename}")
-    print(f"[RENDER] Fonts directory: {ass_file_dir}")
     
     # Build FFmpeg command
     # The scale filter already handles resolution, so we don't need -s flag

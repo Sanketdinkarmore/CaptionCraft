@@ -216,6 +216,7 @@ export type Project = {
   thumbnail_url?: string | null;
   share_token?: string | null;
   is_public?: boolean;
+  collection_id?: string | null;
 };
 
 export type ProjectCreate = {
@@ -226,6 +227,7 @@ export type ProjectCreate = {
   segments: Segment[];
   global_style?: GlobalStyle | null;
   thumbnail_url?: string | null;
+  collection_id?: string | null;
 };
 
 export type ProjectUpdate = {
@@ -235,6 +237,8 @@ export type ProjectUpdate = {
   video_filename?: string | null;
   video_url?: string | null;
   thumbnail_url?: string | null;
+   // To move project between collections or clear it
+  collection_id?: string | null;
 };
 
 // Save a new project
@@ -287,12 +291,12 @@ export async function loadProject(projectId: string): Promise<Project> {
   return res.json();
 }
 
-// List all projects
-export async function listProjects(userId?: string): Promise<Project[]> {
-  const url = userId 
-    ? `${API_BASE}/projects?user_id=${encodeURIComponent(userId)}`
+// List all projects, optionally filtered by collection
+export async function listProjects(collectionId?: string): Promise<Project[]> {
+  const url = collectionId
+    ? `${API_BASE}/projects?collection_id=${encodeURIComponent(collectionId)}`
     : `${API_BASE}/projects`;
-  
+
   const res = await fetch(url, { headers: { ...getAuthHeaders() } });
 
   if (!res.ok) {
@@ -364,4 +368,56 @@ export async function revokeShareToken(projectId: string): Promise<void> {
   if (!res.ok) {
     throw new Error("Failed to revoke share token");
   }
+}
+
+// ==================== Collection Functions ====================
+
+export type Collection = {
+  id: string;
+  name: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CollectionCreate = {
+  name: string;
+};
+
+export type CollectionUpdate = {
+  name?: string;
+};
+
+export async function listCollections(): Promise<Collection[]> {
+  const res = await fetch(`${API_BASE}/collections`, {
+    headers: { ...getAuthHeaders() },
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to load collections");
+  }
+
+  return res.json();
+}
+
+export async function createCollection(
+  data: CollectionCreate
+): Promise<Collection> {
+  const res = await fetch(`${API_BASE}/collections`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const error = await res
+      .json()
+      .catch(() => ({ detail: "Failed to create collection" }));
+    throw new Error(error.detail || "Failed to create collection");
+  }
+
+  return res.json();
 }

@@ -3,12 +3,12 @@ from bson import ObjectId
 from datetime import datetime
 from app.database.connection import get_database
 from app.database.models import (
-    ProjectInDB, 
-    ProjectCreate, 
-    ProjectUpdate, 
+    ProjectInDB,
+    ProjectCreate,
+    ProjectUpdate,
     ProjectResponse,
     Segment,
-    GlobalStyle
+    GlobalStyle,
 )
 
 async def create_project(project_data: ProjectCreate) -> ProjectResponse:
@@ -23,6 +23,14 @@ async def create_project(project_data: ProjectCreate) -> ProjectResponse:
             user_id_obj = ObjectId(project_data.user_id)
         except Exception:
             user_id_obj = None
+
+    # Optional collection_id
+    collection_id_obj = None
+    if getattr(project_data, "collection_id", None):
+        try:
+            collection_id_obj = ObjectId(project_data.collection_id)
+        except Exception:
+            collection_id_obj = None
     
     # Create project document
     project_doc = {
@@ -37,7 +45,8 @@ async def create_project(project_data: ProjectCreate) -> ProjectResponse:
         "thumbnail_url": getattr(project_data, "thumbnail_url", None),
         "share_token": None,
         "shared_with": [],
-        "is_public": False
+        "is_public": False,
+        "collection_id": collection_id_obj,
     }
     
     result = await projects_collection.insert_one(project_doc)
@@ -66,8 +75,11 @@ async def get_project(project_id: str, user_id: Optional[str] = None) -> Optiona
     except Exception:
         return None
 
-async def get_projects(user_id: Optional[str] = None) -> List[ProjectResponse]:
-    """Get all projects for a given user (if provided)"""
+async def get_projects(
+    user_id: Optional[str] = None,
+    collection_id: Optional[str] = None,
+) -> List[ProjectResponse]:
+    """Get all projects for a given user (if provided), optionally filtered by collection."""
     db = get_database()
     projects_collection = db["projects"]
     
@@ -76,6 +88,13 @@ async def get_projects(user_id: Optional[str] = None) -> List[ProjectResponse]:
         try:
             query["user_id"] = ObjectId(user_id)
         except Exception:
+            pass
+
+    if collection_id:
+        try:
+            query["collection_id"] = ObjectId(collection_id)
+        except Exception:
+            # Ignore invalid collection id filter
             pass
     
     cursor = projects_collection.find(query).sort("updated_at", -1)
@@ -104,6 +123,17 @@ async def update_project(project_id: str, project_update: ProjectUpdate, user_id
         update_data["global_style"] = project_update.global_style.model_dump()
     if project_update.thumbnail_url is not None:
         update_data["thumbnail_url"] = project_update.thumbnail_url
+
+    # Allow setting or clearing collection_id
+    if project_update.collection_id is not None:
+        if project_update.collection_id:
+            try:
+                update_data["collection_id"] = ObjectId(project_update.collection_id)
+            except Exception:
+                # If invalid, treat as clearing the collection
+                update_data["collection_id"] = None
+        else:
+            update_data["collection_id"] = None
     
     try:
         query: dict = {"_id": ObjectId(project_id)}
@@ -169,6 +199,7 @@ def _project_doc_to_response(doc: dict) -> ProjectResponse:
         updated_at=doc["updated_at"],
         thumbnail_url=doc.get("thumbnail_url"),
         share_token=doc.get("share_token"),
-        is_public=doc.get("is_public", False)
+        is_public=doc.get("is_public", False),
+        collection_id=str(doc["collection_id"]) if doc.get("collection_id") else None,
     )
 

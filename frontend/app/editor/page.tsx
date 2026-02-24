@@ -19,76 +19,43 @@ import {
   type Segment,
   type StyledSpan,
   type Project,
+  type Collection,
+  listCollections,
+  createCollection,
 } from "@/lib/apiClient";
 import { getToken, me, clearToken, type AuthUser } from "@/lib/authClient";
 
-// Make a Segment with content from plain text
-function makeSegmentFromText(
-  start: number,
-  end: number,
-  text: string
-): Segment {
-  return {
-    start,
-    end,
-    content: [{ text }],
-    position: { x: 0.5, y: 0.8 },
-  };
+function makeSegmentFromText(start: number, end: number, text: string): Segment {
+  return { start, end, content: [{ text }], position: { x: 0.5, y: 0.8 } };
 }
 
-// Get plain text from a rich Segment
 function segmentToText(seg: Segment): string {
   return seg.content.map((sp) => sp.text).join("");
 }
 
-// Ensure word-level spans exist for styling
 function ensureWordSpans(seg: Segment): StyledSpan[] {
   const text = segmentToText(seg);
   const words = text.split(" ");
-  
   return words.map((word, i) => {
     const suffix = i < words.length - 1 ? " " : "";
     return { text: word + suffix } as StyledSpan;
   });
 }
 
-// Split one long segment into sentence-level segments
 function splitSegmentBySentences(seg: Segment): Segment[] {
   const fullText = segmentToText(seg);
   const totalDuration = seg.end - seg.start || 0.001;
-
-  const sentences = fullText
-    .split(/(?<=[.!?])/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (sentences.length <= 1) {
-    return [seg];
-  }
-
-  const totalChars =
-    sentences.reduce((sum, s) => sum + s.length, 0) || 1;
-
+  const sentences = fullText.split(/(?<=[.!?])/).map((s) => s.trim()).filter(Boolean);
+  if (sentences.length <= 1) return [seg];
+  const totalChars = sentences.reduce((sum, s) => sum + s.length, 0) || 1;
   const result: Segment[] = [];
   let cursor = seg.start;
-
   for (const sentence of sentences) {
     const ratio = sentence.length / totalChars;
     const dur = totalDuration * ratio;
-    const sStart = cursor;
-    const sEnd = cursor + dur;
-
-    const newSeg: Segment = {
-      start: sStart,
-      end: sEnd,
-      content: [{ text: sentence }],
-      position: seg.position ?? { x: 0.5, y: 0.8 },
-    };
-
-    result.push(newSeg);
-    cursor = sEnd;
+    result.push({ start: cursor, end: cursor + dur, content: [{ text: sentence }], position: seg.position ?? { x: 0.5, y: 0.8 } });
+    cursor += dur;
   }
-
   return result;
 }
 
@@ -98,45 +65,89 @@ function segmentsToSrt(segments: Segment[]) {
     const minutes = Math.floor((t % 3600) / 60);
     const seconds = Math.floor(t % 60);
     const millis = Math.floor((t - Math.floor(t)) * 1000);
-
-    const pad = (n: number, width: number) =>
-      n.toString().padStart(width, "0");
-
-    return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(
-      seconds,
-      2
-    )},${pad(millis, 3)}`;
+    const pad = (n: number, width: number) => n.toString().padStart(width, "0");
+    return `${pad(hours, 2)}:${pad(minutes, 2)}:${pad(seconds, 2)},${pad(millis, 3)}`;
   };
-
-  return segments
-    .map((s, i) => {
-      const idx = i + 1;
-      const start = formatTime(s.start);
-      const end = formatTime(s.end);
-      const text = segmentToText(s).trim() || "...";
-      return `${idx}\n${start} --> ${end}\n${text}\n`;
-    })
-    .join("\n");
+  return segments.map((s, i) => {
+    const text = segmentToText(s).trim() || "...";
+    return `${i + 1}\n${formatTime(s.start)} --> ${formatTime(s.end)}\n${text}\n`;
+  }).join("\n");
 }
 
-function clamp01(v: number) {
-  return Math.max(0, Math.min(1, v));
-}
+function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
+const UploadIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/>
+  </svg>
+);
+const SaveIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/>
+  </svg>
+);
+const FolderIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+  </svg>
+);
+const ExportIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+const RenderIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="5,3 19,12 5,21 5,3"/>
+  </svg>
+);
+const ShareIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+  </svg>
+);
+const SplitIcon = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="21" y1="12" x2="3" y2="12"/><polyline points="9,6 3,12 9,18"/>
+  </svg>
+);
+const TrashIcon = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+    <path d="M10 11v6"/><path d="M14 11v6"/>
+  </svg>
+);
+const HighlightIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+const SettingsIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3"/>
+    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+  </svg>
+);
 
 export default function EditorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sharedToken = searchParams.get("shared");
+
   const [segments, setSegments] = useState<Segment[]>([]);
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null); // Store original file for Cloudinary upload
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [presetsOpen, setPresetsOpen] = useState(false);
-  
-  // Project management state
+  const [activeTab, setActiveTab] = useState<"subtitles" | "music">("subtitles");
+  const [styleTab, setStyleTab] = useState<"classic" | "dynamic">("dynamic");
+
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -149,240 +160,70 @@ export default function EditorPage() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  // Auth state
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [collectionFilterId, setCollectionFilterId] = useState<string | null>(null);
+  const [collectionsDropdownOpen, setCollectionsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const token = getToken();
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    // Load current user info
-    me()
-      .then((user) => {
-        setCurrentUser(user);
-        setAuthChecked(true);
-        
-        // If shared token is present, load the shared project
-        if (sharedToken) {
-          getSharedProject(sharedToken)
-            .then((project) => {
-              // Load the shared project into editor
-              setSegments(project.segments);
-              if (project.global_style) {
-                setGlobalStyle(project.global_style);
-              }
-              if (project.video_url) {
-                setVideoUrl(project.video_url);
-              }
-              if (project.thumbnail_url) {
-                setThumbnailUrl(project.thumbnail_url);
-              }
-              setProjectTitle(project.title);
-              // Note: We don't set currentProjectId because this is a shared project
-              // User would need to save it as their own project
-            })
-            .catch((err) => {
-              console.error("Failed to load shared project:", err);
-            });
-        }
-      })
-      .catch(() => {
-        clearToken();
-        router.push("/login");
-      });
+    if (!token) { router.push("/login"); return; }
+    me().then((user) => {
+      setCurrentUser(user);
+      setAuthChecked(true);
+      if (sharedToken) {
+        getSharedProject(sharedToken).then((project) => {
+          setSegments(project.segments);
+          if (project.global_style) setGlobalStyle(project.global_style);
+          if (project.video_url) setVideoUrl(project.video_url);
+          if (project.thumbnail_url) setThumbnailUrl(project.thumbnail_url);
+          setProjectTitle(project.title);
+        }).catch(console.error);
+      }
+    }).catch(() => { clearToken(); router.push("/login"); });
   }, [router, sharedToken]);
-  
-  // GLOBAL subtitle style (affects ALL subtitles)
+
   const [globalStyle, setGlobalStyle] = useState<{
-    fontSize: number;
-    color: string;
-    background: string;
-    fontFamily: string;
-    preset: string;
+    fontSize: number; color: string; background: string; fontFamily: string; preset: string;
   }>({
-    fontSize: 36,
-    color: "#ffffff",
-    background: "rgba(0, 0, 0, 0.6)",
-    fontFamily: "Inter, system-ui, sans-serif",
-    preset: "Classic",
+    fontSize: 36, color: "#ffffff", background: "rgba(0, 0, 0, 0.6)",
+    fontFamily: "Inter, system-ui, sans-serif", preset: "Classic",
   });
 
-  // Preset definitions
-  // const presetStyles = {
-  //   "Pop Art": {
-  //     fontSize: 64,
-  //     color: "#FF00FF",
-  //     background: "rgba(0, 0, 0, 0.8)",
-  //     fontFamily: "Inter, system-ui, sans-serif",
-  //   },
-  //   "Highlight": {
-  //     fontSize: 48,
-  //     color: "#FFD700",
-  //     background: "rgba(0, 0, 0, 0.7)",
-  //     fontFamily: "Poppins, system-ui, sans-serif",
-  //   },
-  //   "Neon": {
-  //     fontSize: 80,
-  //     color: "#00FFFF",
-  //     background: "rgba(0, 0, 0, 0.9)",
-  //     fontFamily: "Impact, system-ui, sans-serif",
-  //   },
-  //   "Classic": {
-  //     fontSize: 36,
-  //     color: "#FFFFFF",
-  //     background: "rgba(0, 0, 0, 0.6)",
-  //     fontFamily: "Inter, system-ui, sans-serif",
-  //   },
-  // };
-
   const presetStyles = {
-  "Cinematic": {
-    fontSize: 42,
-    color: "#FFFFFF",
-    background: "rgba(0, 0, 0, 0.85)",
-    fontFamily: "Montserrat, system-ui, sans-serif",
-  },
+    "Cinematic":       { fontSize: 42, color: "#FFFFFF", background: "rgba(0,0,0,0.85)",             fontFamily: "Montserrat, system-ui, sans-serif" },
+    "YouTube Bold":    { fontSize: 60, color: "#FFFFFF", background: "#FF0000",                      fontFamily: "Poppins, system-ui, sans-serif" },
+    "Reels Clean":     { fontSize: 52, color: "#FFFFFF", background: "rgba(0,0,0,0.55)",             fontFamily: "Inter, system-ui, sans-serif" },
+    "Podcast Minimal": { fontSize: 34, color: "#E5E5E5", background: "rgba(20,20,20,0.7)",           fontFamily: "Roboto, system-ui, sans-serif" },
+    "Hinglish Punch":  { fontSize: 58, color: "#00FF99", background: "rgba(0,0,0,0.85)",             fontFamily: "Poppins, system-ui, sans-serif" },
+    "Neon Glow Pink":  { fontSize: 72, color: "#FF4DFF", background: "rgba(0,0,0,0.9)",              fontFamily: "Orbitron, system-ui, sans-serif" },
+    "Neon Green":      { fontSize: 68, color: "#39FF14", background: "rgba(0,0,0,0.85)",             fontFamily: "Impact, system-ui, sans-serif" },
+    "Soft Pastel":     { fontSize: 44, color: "#2C2C2C", background: "rgba(255,200,221,0.9)",        fontFamily: "Nunito, system-ui, sans-serif" },
+    "Dark Mode Pro":   { fontSize: 40, color: "#F1F1F1", background: "rgba(15,15,15,0.9)",           fontFamily: "Inter, system-ui, sans-serif" },
+    "Bold Yellow":     { fontSize: 62, color: "#000000", background: "#FFD700",                      fontFamily: "Poppins, system-ui, sans-serif" },
+    "Instagram Story": { fontSize: 56, color: "#FFFFFF", background: "linear-gradient(90deg,#833AB4,#FD1D1D,#FCB045)", fontFamily: "Poppins, system-ui, sans-serif" },
+    "Retro VHS":       { fontSize: 50, color: "#00FFD1", background: "rgba(0,0,0,0.75)",             fontFamily: "Courier Prime, monospace" },
+    "Luxury Serif":    { fontSize: 38, color: "#F5F5F5", background: "rgba(0,0,0,0.6)",              fontFamily: "Playfair Display, serif" },
+    "Gaming HUD":      { fontSize: 48, color: "#00E5FF", background: "rgba(10,10,10,0.85)",          fontFamily: "Orbitron, system-ui, sans-serif" },
+    "Minimal White":   { fontSize: 32, color: "#000000", background: "rgba(255,255,255,0.85)",       fontFamily: "Inter, system-ui, sans-serif" },
+  };
 
-  "YouTube Bold": {
-    fontSize: 60,
-    color: "#FFFFFF",
-    background: "#FF0000",
-    fontFamily: "Poppins, system-ui, sans-serif",
-  },
-
-  "Reels Clean": {
-    fontSize: 52,
-    color: "#FFFFFF",
-    background: "rgba(0, 0, 0, 0.55)",
-    fontFamily: "Inter, system-ui, sans-serif",
-  },
-
-  "Podcast Minimal": {
-    fontSize: 34,
-    color: "#E5E5E5",
-    background: "rgba(20, 20, 20, 0.7)",
-    fontFamily: "Roboto, system-ui, sans-serif",
-  },
-
-  "Hinglish Punch": {
-    fontSize: 58,
-    color: "#00FF99",
-    background: "rgba(0, 0, 0, 0.85)",
-    fontFamily: "Poppins, system-ui, sans-serif",
-  },
-
-  "Neon Glow Pink": {
-    fontSize: 72,
-    color: "#FF4DFF",
-    background: "rgba(0, 0, 0, 0.9)",
-    fontFamily: "Orbitron, system-ui, sans-serif",
-  },
-
-  "Neon Green": {
-    fontSize: 68,
-    color: "#39FF14",
-    background: "rgba(0, 0, 0, 0.85)",
-    fontFamily: "Impact, system-ui, sans-serif",
-  },
-
-  "Soft Pastel": {
-    fontSize: 44,
-    color: "#2C2C2C",
-    background: "rgba(255, 200, 221, 0.9)",
-    fontFamily: "Nunito, system-ui, sans-serif",
-  },
-
-  "Dark Mode Pro": {
-    fontSize: 40,
-    color: "#F1F1F1",
-    background: "rgba(15, 15, 15, 0.9)",
-    fontFamily: "Inter, system-ui, sans-serif",
-  },
-
-  "Bold Yellow": {
-    fontSize: 62,
-    color: "#000000",
-    background: "#FFD700",
-    fontFamily: "Poppins, system-ui, sans-serif",
-  },
-
-  "Instagram Story": {
-    fontSize: 56,
-    color: "#FFFFFF",
-    background: "linear-gradient(90deg, #833AB4, #FD1D1D, #FCB045)",
-    fontFamily: "Poppins, system-ui, sans-serif",
-  },
-
-  "Retro VHS": {
-    fontSize: 50,
-    color: "#00FFD1",
-    background: "rgba(0, 0, 0, 0.75)",
-    fontFamily: "Courier Prime, monospace",
-  },
-
-  "Luxury Serif": {
-    fontSize: 38,
-    color: "#F5F5F5",
-    background: "rgba(0, 0, 0, 0.6)",
-    fontFamily: "Playfair Display, serif",
-  },
-
-  "Gaming HUD": {
-    fontSize: 48,
-    color: "#00E5FF",
-    background: "rgba(10, 10, 10, 0.85)",
-    fontFamily: "Orbitron, system-ui, sans-serif",
-  },
-
-  "Minimal White": {
-    fontSize: 32,
-    color: "#000000",
-    background: "rgba(255, 255, 255, 0.85)",
-    fontFamily: "Inter, system-ui, sans-serif",
-  },
-};
-
-
-  const [selectedWord, setSelectedWord] = useState<{
-    segmentIndex: number | null;
-    wordIndex: number | null;
-  }>({ segmentIndex: null, wordIndex: null });
-
-  // Individual word styling (overrides global)
-  const [wordStyleDraft, setWordStyleDraft] = useState<{
-    color: string;
-    fontFamily: string;
-    bold: boolean;
-    fontSize: number;
-    background: string;
-  }>({
-    color: "#ffd54f",
-    fontFamily: "Inter, system-ui, sans-serif",
-    bold: true,
-    fontSize: 48,
-    background: "#FF0000",
+  const [selectedWord, setSelectedWord] = useState<{ segmentIndex: number | null; wordIndex: number | null }>({ segmentIndex: null, wordIndex: null });
+  const [wordStyleDraft, setWordStyleDraft] = useState<{ color: string; fontFamily: string; bold: boolean; fontSize: number; background: string }>({
+    color: "#ffd54f", fontFamily: "Inter, system-ui, sans-serif", bold: true, fontSize: 48, background: "#FF0000",
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Apply GLOBAL preset to ALL segments
   function applyGlobalPreset(presetName: string) {
     const preset = presetStyles[presetName as keyof typeof presetStyles];
     if (!preset) return;
-
-    setGlobalStyle({
-      fontSize: preset.fontSize,
-      color: preset.color,
-      background: preset.background,
-      fontFamily: preset.fontFamily,
-      preset: presetName,
-    });
-    
+    setGlobalStyle({ ...preset, preset: presetName });
     setPresetsOpen(false);
   }
 
@@ -392,23 +233,17 @@ export default function EditorPage() {
     const blob = new Blob([srt], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = "subtitles.srt";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = "subtitles.srt";
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
   function handleAddBelow(index: number) {
     setSegments((prev) => {
-      if (!prev.length) return prev;
       const current = prev[index];
       const mid = (current.start + current.end) / 2;
-      const firstHalf: Segment = { ...current, end: mid };
-      const secondHalf: Segment = { ...current, start: mid };
       const copy = [...prev];
-      copy.splice(index, 1, firstHalf, secondHalf);
+      copy.splice(index, 1, { ...current, end: mid }, { ...current, start: mid });
       return copy;
     });
   }
@@ -427,9 +262,7 @@ export default function EditorPage() {
       const copy = [...prev];
       const seg = copy[segmentIndex];
       if (!seg) return prev;
-
       const wordSpans = ensureWordSpans(seg);
-      
       if (wordSpans[wordIndex]) {
         wordSpans[wordIndex] = {
           ...wordSpans[wordIndex],
@@ -440,7 +273,6 @@ export default function EditorPage() {
           background: wordStyleDraft.background,
         } as StyledSpan;
       }
-
       copy[segmentIndex] = { ...seg, content: wordSpans };
       return copy;
     });
@@ -449,53 +281,33 @@ export default function EditorPage() {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Store the original file for Cloudinary upload later
     setVideoFile(file);
-    
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
     setLoading(true);
     setError(null);
     setSegments([]);
     setSelectedWord({ segmentIndex: null, wordIndex: null });
-    // Reset project when new video is uploaded
     setCurrentProjectId(null);
     setProjectTitle("Untitled Project");
-    
-    // Show progress for transcription
-    setUploadProgress(10); // Initial upload
-
+    setUploadProgress(10);
     try {
-      // Simulate progress for transcription (we can't track actual progress server-side easily)
       setUploadProgress(30);
       const data = await uploadAndTranscribe(file);
       setUploadProgress(80);
-      const withContent: Segment[] = data.segments.map((raw) =>
-        makeSegmentFromText(raw.start, raw.end, raw.text)
-      );
-      const processed: Segment[] = withContent.flatMap((seg) =>
-        splitSegmentBySentences(seg)
-      );
-
+      const withContent: Segment[] = data.segments.map((raw: any) => makeSegmentFromText(raw.start, raw.end, raw.text));
+      const processed: Segment[] = withContent.flatMap((seg) => splitSegmentBySentences(seg));
       let lastEnd = 0;
       const fixed = processed.map((s) => {
         const start = Math.max(s.start, lastEnd);
         const end = Math.max(start + 0.05, s.end);
         lastEnd = end;
-        return {
-          ...s,
-          start,
-          end,
-          position: s.position ?? { x: 0.5, y: 0.8 },
-        } as Segment;
+        return { ...s, start, end, position: s.position ?? { x: 0.5, y: 0.8 } } as Segment;
       });
-
       setSegments(fixed);
       setUploadProgress(100);
       setTimeout(() => setUploadProgress(null), 500);
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Something went wrong");
       setUploadProgress(null);
     } finally {
@@ -506,166 +318,89 @@ export default function EditorPage() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    const onTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-    };
-
+    const onTimeUpdate = () => setCurrentTime(video.currentTime);
     video.addEventListener("timeupdate", onTimeUpdate);
-    return () => {
-      video.removeEventListener("timeupdate", onTimeUpdate);
-    };
+    return () => video.removeEventListener("timeupdate", onTimeUpdate);
   }, [videoUrl]);
 
-  const activeSegment = segments.find(
-    (s) => currentTime >= s.start && currentTime < s.end
-  );
+  const activeSegment = segments.find((s) => currentTime >= s.start && currentTime < s.end);
 
-  // FIXED: Send globalStyle to backend
   async function handleRenderVideo() {
     if (!videoUrl || !segments.length) return;
-    
-    console.log("sending to backend:", JSON.stringify({
-      segments,
-      globalStyle,
-      videoUrl,
-      resolution: exportResolution
-    }, null, 2));
-    
     setRendering(true);
     setError(null);
     try {
-      const { file_name, output_resolution } = await renderVideo({
-        segments,
-        globalStyle,
-        videoUrl: videoUrl!,
-        resolution: exportResolution,
-      });
-      
-      // Log the output resolution for verification
-      if (output_resolution) {
-        console.log(`✅ Video rendered at resolution: ${output_resolution}`);
-        alert(`Video rendered successfully!\nResolution: ${output_resolution}\nSelected: ${exportResolution}`);
-      } else {
-        console.log(`✅ Video rendered (resolution: ${exportResolution})`);
-      }
-      
+      const { file_name, output_resolution } = await renderVideo({ segments, globalStyle, videoUrl: videoUrl!, resolution: exportResolution });
+      if (output_resolution) alert(`Video rendered successfully!\nResolution: ${output_resolution}\nSelected: ${exportResolution}`);
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Render failed");
     } finally {
       setRendering(false);
     }
   }
-  
-  // Thumbnail management
+
   async function handleThumbnailUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setLoading(true);
       const result = await uploadThumbnail(file);
       setThumbnailUrl(result.thumbnail_url);
-      
-      // Update current project if it exists
-      if (currentProjectId) {
-        await updateProject(currentProjectId, {
-          thumbnail_url: result.thumbnail_url
-        });
-      }
+      if (currentProjectId) await updateProject(currentProjectId, { thumbnail_url: result.thumbnail_url });
     } catch (err: any) {
       setError(err.message || "Failed to upload thumbnail");
     } finally {
       setLoading(false);
     }
   }
-  
-  // Project sharing
+
   async function handleShareProject() {
-    if (!currentProjectId) {
-      setError("Please save the project first");
-      return;
-    }
-    
+    if (!currentProjectId) { setError("Please save the project first"); return; }
     try {
       const result = await generateShareToken(currentProjectId);
       setShareToken(result.share_token);
       const fullUrl = `${window.location.origin}/shared/${result.share_token}`;
       setShareUrl(fullUrl);
-      
-      // Copy to clipboard
       await navigator.clipboard.writeText(fullUrl);
       alert("Share link copied to clipboard!");
     } catch (err: any) {
       setError(err.message || "Failed to generate share link");
     }
   }
-  
+
   async function handleRevokeShare() {
     if (!currentProjectId) return;
-    
     try {
       await revokeShareToken(currentProjectId);
-      setShareToken(null);
-      setShareUrl(null);
+      setShareToken(null); setShareUrl(null);
       alert("Share link revoked");
     } catch (err: any) {
       setError(err.message || "Failed to revoke share link");
     }
   }
 
-  // Project management handlers
   async function handleSaveProject() {
-    if (!segments.length) {
-      setError("No subtitles to save");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
+    if (!segments.length) { setError("No subtitles to save"); return; }
+    setSaving(true); setError(null);
     try {
-      // Upload video to Cloudinary if it's a blob URL (new upload)
-      // If it's already a Cloudinary URL (https://), use it directly
       let videoUrlToSave = videoUrl;
-      
       let thumbnailUrlToSave = thumbnailUrl;
-      
       if (videoUrl && videoUrl.startsWith("blob:") && videoFile) {
-        // New video upload - upload to Cloudinary
-        console.log("Uploading video to Cloudinary...");
         setUploadProgress(0);
         try {
-          const uploadResult = await uploadVideo(
-            videoFile, 
-            true, // Auto-generate thumbnail
-            (progress) => {
-              setUploadProgress(progress);
-            }
-          );
+          const uploadResult = await uploadVideo(videoFile, true, (progress) => setUploadProgress(progress));
           videoUrlToSave = uploadResult.video_url;
-          // Use auto-generated thumbnail if available
           if (uploadResult.thumbnail_url && !thumbnailUrlToSave) {
             thumbnailUrlToSave = uploadResult.thumbnail_url;
             setThumbnailUrl(uploadResult.thumbnail_url);
           }
-          console.log("Video uploaded to Cloudinary:", videoUrlToSave);
         } catch (uploadErr: any) {
-          console.error("Cloudinary upload failed:", uploadErr);
           throw new Error(`Failed to upload video: ${uploadErr.message || "Unknown error"}`);
         } finally {
           setUploadProgress(null);
         }
-      } else if (videoUrl && (videoUrl.startsWith("https://") || videoUrl.startsWith("http://"))) {
-        // Already a Cloudinary URL or other remote URL - use directly
-        videoUrlToSave = videoUrl;
-      } else if (videoUrl && videoUrl.startsWith("data:")) {
-        // Legacy data URL - warn user but allow saving
-        console.warn("Project contains data URL. Consider re-uploading video for better performance.");
-        videoUrlToSave = videoUrl;
       }
-
       const projectData = {
         title: projectTitle,
         user_id: currentUser?.id || null,
@@ -674,24 +409,18 @@ export default function EditorPage() {
         thumbnail_url: thumbnailUrlToSave,
         segments,
         global_style: globalStyle,
+        collection_id: selectedCollectionId,
       };
-
       let savedProject: Project;
       if (currentProjectId) {
-        // Update existing project
         savedProject = await updateProject(currentProjectId, projectData);
       } else {
-        // Create new project
         savedProject = await saveProject(projectData);
         setCurrentProjectId(savedProject.id);
       }
-      
-      // Refresh projects list
       await loadProjectsList();
-      setError(null);
       alert("Project saved successfully!");
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Failed to save project");
     } finally {
       setSaving(false);
@@ -699,64 +428,35 @@ export default function EditorPage() {
   }
 
   async function handleLoadProject(projectId: string) {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const project = await loadProject(projectId);
-      
-      // Load project data into editor
       setSegments(project.segments);
-      if (project.global_style) {
-        setGlobalStyle(project.global_style);
-      }
-      
-      // Load thumbnail
-      if (project.thumbnail_url) {
-        setThumbnailUrl(project.thumbnail_url);
-      }
-      
-      // Load share token if exists
+      if (project.global_style) setGlobalStyle(project.global_style);
+      if (project.thumbnail_url) setThumbnailUrl(project.thumbnail_url);
       if (project.share_token) {
         setShareToken(project.share_token);
         setShareUrl(`${window.location.origin}/shared/${project.share_token}`);
       }
-      
-      // Handle video URL - Cloudinary URLs (https://) work directly
       if (project.video_url) {
         if (project.video_url.startsWith("https://") || project.video_url.startsWith("http://")) {
-          // Cloudinary URL or other remote URL - use directly
-          setVideoUrl(project.video_url);
-          setVideoFile(null); // Clear file reference since we're loading from URL
-          console.log("Loaded video from Cloudinary URL");
+          setVideoUrl(project.video_url); setVideoFile(null);
         } else if (project.video_url.startsWith("data:")) {
-          // Legacy data URL - still supported but not ideal
-          setVideoUrl(project.video_url);
-          setVideoFile(null);
-          console.log("Loaded video from data URL (legacy format)");
+          setVideoUrl(project.video_url); setVideoFile(null);
         } else if (project.video_url.startsWith("blob:")) {
-          // Old blob URL - won't work after reload, show warning
-          console.warn("Project has blob URL which is no longer valid. Video cannot be loaded.");
-          setError("Video file not available. This project was saved with a temporary video URL. Please re-upload the video.");
-          setVideoUrl(null);
-          setVideoFile(null);
+          setError("Video file not available. Please re-upload the video.");
+          setVideoUrl(null); setVideoFile(null);
         } else {
-          // Unknown URL format - try to use it
-          setVideoUrl(project.video_url);
-          setVideoFile(null);
+          setVideoUrl(project.video_url); setVideoFile(null);
         }
       } else {
-        // No video URL in project
-        setVideoUrl(null);
-        setVideoFile(null);
+        setVideoUrl(null); setVideoFile(null);
       }
-      
       setProjectTitle(project.title);
       setCurrentProjectId(project.id);
+      setSelectedCollectionId(project.collection_id ?? null);
       setProjectsOpen(false);
-      
-      setError(null);
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Failed to load project");
     } finally {
       setLoading(false);
@@ -765,20 +465,12 @@ export default function EditorPage() {
 
   async function handleDeleteProject(projectId: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this project?")) {
-      return;
-    }
-
+    if (!confirm("Are you sure you want to delete this project?")) return;
     try {
       await deleteProject(projectId);
-      if (currentProjectId === projectId) {
-        // Clear current project if deleting the active one
-        setCurrentProjectId(null);
-        setProjectTitle("Untitled Project");
-      }
+      if (currentProjectId === projectId) { setCurrentProjectId(null); setProjectTitle("Untitled Project"); }
       await loadProjectsList();
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Failed to delete project");
     }
   }
@@ -786,29 +478,35 @@ export default function EditorPage() {
   async function loadProjectsList() {
     setLoadingProjects(true);
     try {
-      // Filter projects by current user
-      const projectList = await listProjects(currentUser?.id);
+      const projectList = await listProjects(collectionFilterId || undefined);
       setProjects(projectList);
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Failed to load projects");
     } finally {
       setLoadingProjects(false);
     }
   }
 
-  function handleLogout() {
-    clearToken();
-    setCurrentUser(null);
-    router.push("/login");
+  function handleLogout() { clearToken(); setCurrentUser(null); router.push("/login"); }
+
+  async function loadCollectionsList() {
+    setCollectionsLoading(true);
+    try {
+      const cols = await listCollections();
+      setCollections(cols);
+    } catch (err: any) {
+      setError(err.message ?? "Failed to load collections");
+    } finally {
+      setCollectionsLoading(false);
+    }
   }
 
   useEffect(() => {
-    // Load projects list when modal opens
     if (projectsOpen) {
       loadProjectsList();
+      loadCollectionsList();
     }
-  }, [projectsOpen]);
+  }, [projectsOpen, collectionFilterId]);
 
   function makePositionHandlers(idx: number) {
     return {
@@ -816,37 +514,17 @@ export default function EditorPage() {
         const video = videoRef.current;
         if (!video) return;
         const rect = video.getBoundingClientRect();
-        const startX = e.clientX;
-        const startY = e.clientY;
-
+        const startX = e.clientX; const startY = e.clientY;
         const seg = segments[idx];
         const pos = seg.position ?? { x: 0.5, y: 0.8 };
         const startPxX = rect.left + pos.x * rect.width;
         const startPxY = rect.top + pos.y * rect.height;
-
         const onMove = (ev: MouseEvent) => {
-          const dx = ev.clientX - startX;
-          const dy = ev.clientY - startY;
-          const newPxX = startPxX + dx;
-          const newPxY = startPxY + dy;
-          const newX = clamp01((newPxX - rect.left) / rect.width);
-          const newY = clamp01((newPxY - rect.top) / rect.height);
-
-          setSegments((prev) => {
-            const copy = [...prev];
-            copy[idx] = {
-              ...copy[idx],
-              position: { x: newX, y: newY },
-            };
-            return copy;
-          });
+          const newX = clamp01((startPxX + ev.clientX - startX - rect.left) / rect.width);
+          const newY = clamp01((startPxY + ev.clientY - startY - rect.top) / rect.height);
+          setSegments((prev) => { const copy = [...prev]; copy[idx] = { ...copy[idx], position: { x: newX, y: newY } }; return copy; });
         };
-
-        const onUp = () => {
-          window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp);
-        };
-
+        const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
         window.addEventListener("mousemove", onMove);
         window.addEventListener("mouseup", onUp);
       },
@@ -855,647 +533,1577 @@ export default function EditorPage() {
 
   if (!authChecked) {
     return (
-      <main className="min-h-screen flex items-center justify-center text-gray-400">
-        Checking session...
+      <main className="cc-loading-screen">
+        <div className="cc-loading-inner">
+          <div className="cc-loading-logo">CC</div>
+          <div className="cc-loading-spinner" />
+          <p className="cc-loading-text">Loading studio…</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen flex flex-col">
-      {/* Top bar with profile */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-black/80">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
-            CC
+    <main className="cc-root">
+
+      {/* ── Top bar ── */}
+      <header className="cc-topbar">
+        <div className="cc-topbar-left">
+          <div className="cc-logo">
+            <span>CC</span>
           </div>
-          <span className="text-sm font-semibold text-white">CaptionCraft</span>
+          <div className="cc-brand">
+            <span className="cc-brand-name">CaptionCraft</span>
+            <span className="cc-brand-sub">Studio</span>
+          </div>
+          <div className="cc-topbar-sep" />
+          <label className="cc-video-picker">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/>
+            </svg>
+            <span>Tap to choose from previous videos or upload new</span>
+            <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+          </label>
         </div>
 
-        {currentUser && (
-          <ProfileMenu
-            user={currentUser}
-            open={profileMenuOpen}
-            onToggle={() => setProfileMenuOpen((v) => !v)}
-            onOpenProjects={() => {
-              setProjectsOpen(true);
-              setProfileMenuOpen(false);
-            }}
-            onLogout={handleLogout}
-          />
-        )}
-      </header>
-
-      {/* Main editor layout */}
-      <div className="flex flex-1">
-        {/* Left panel - subtitles */}
-        <section className="w-1/3 border-r p-4 overflow-y-auto">
-        <h1 className="font-semibold mb-3">Subtitles</h1>
-
-        <input
-          type="file"
-          accept="video/*"
-          onChange={handleFileChange}
-          className="mb-4"
-        />
-
-        {/* Project Title Input */}
-        <div className="mb-3">
-          <input
-            type="text"
-            value={projectTitle}
-            onChange={(e) => setProjectTitle(e.target.value)}
-            placeholder="Project Title"
-            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-sm mb-2"
-          />
-        </div>
-
-        {/* GLOBAL CONTROLS: Presets + Size/Text/Bg */}
-        <div className="mb-3 space-y-2">
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={handleSaveProject}
-              disabled={!segments.length || saving}
-              className="px-3 py-1 text-xs rounded border border-blue-600 text-blue-400 disabled:opacity-40"
-            >
-              {saving ? (uploadProgress !== null ? `Uploading ${Math.round(uploadProgress)}%` : "Saving...") : currentProjectId ? "Update" : "Save Project"}
+        <div className="cc-topbar-right">
+          <div className="cc-export-group">
+            <button onClick={handleRenderVideo} disabled={!segments.length || !videoUrl || rendering} className="cc-export-btn">
+              <RenderIcon />
+              <span>{rendering ? "Rendering…" : "Export"}</span>
             </button>
-            {(uploadProgress !== null && uploadProgress < 100) && (
-              <div className="w-full">
-                <div className="bg-gray-700 rounded-full h-1.5 mb-1">
-                  <div
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-400 text-center">
-                  {uploadProgress < 30 ? "Uploading video..." : uploadProgress < 80 ? "Transcribing..." : "Processing..."}
-                </p>
-              </div>
-            )}
-            <button
-              onClick={() => setProjectsOpen(true)}
-              className="px-3 py-1 text-xs rounded border border-purple-600 text-purple-400"
-            >
-              Load Project
-            </button>
-            <button
-              onClick={handleDownloadSrt}
-              disabled={!segments.length}
-              className="px-3 py-1 text-xs rounded border border-gray-600 disabled:opacity-40"
-            >
-              Export .srt
-            </button>
-            <button
-              onClick={handleRenderVideo}
-              disabled={!segments.length || !videoUrl || rendering}
-              className="px-3 py-1 text-xs rounded border border-green-600 disabled:opacity-40"
-            >
-              {rendering ? "Rendering..." : "Render Video"}
-            </button>
-            {shareToken ? (
-              <button
-                onClick={handleRevokeShare}
-                className="px-3 py-1 text-xs rounded border border-red-600 text-red-400"
-              >
-                Revoke Share
-              </button>
-            ) : (
-              <button
-                onClick={handleShareProject}
-                disabled={!currentProjectId}
-                className="px-3 py-1 text-xs rounded border border-yellow-600 text-yellow-400 disabled:opacity-40"
-              >
-                Share
-              </button>
-            )}
-          </div>
-          
-          {/* Resolution Selector */}
-          <div className="mb-3">
-            <label className="text-xs text-gray-400 mb-1 block">Export Resolution</label>
-            <select
-              value={exportResolution}
-              onChange={(e) => setExportResolution(e.target.value as "original" | "720p" | "1080p")}
-              className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-xs"
-            >
+            <div className="cc-export-divider" />
+            <select value={exportResolution} onChange={(e) => setExportResolution(e.target.value as any)} className="cc-export-select">
               <option value="original">Original</option>
               <option value="720p">720p</option>
               <option value="1080p">1080p</option>
             </select>
           </div>
-          
-          {/* Thumbnail Management */}
-          {thumbnailUrl && (
-            <div className="mb-3">
-              <label className="text-xs text-gray-400 mb-1 block">Project Thumbnail</label>
-              <div className="relative">
-                <img 
-                  src={thumbnailUrl} 
-                  alt="Project thumbnail" 
-                  className="w-full h-32 object-cover rounded border border-gray-600"
-                />
-                <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 hover:opacity-100 rounded cursor-pointer transition-opacity">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleThumbnailUpload}
-                    className="hidden"
-                  />
-                  <span className="text-white text-xs px-2 py-1 bg-blue-600 rounded">Change</span>
-                </label>
-              </div>
-            </div>
-          )}
-          
-          {/* Share URL Display */}
-          {shareUrl && (
-            <div className="mb-3 p-2 bg-gray-900 rounded border border-gray-700">
-              <label className="text-xs text-gray-400 mb-1 block">Share Link</label>
-              <div className="flex gap-1">
-                <input
-                  type="text"
-                  value={shareUrl}
-                  readOnly
-                  className="flex-1 px-2 py-1 text-xs rounded border border-gray-600 bg-black text-white"
-                />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareUrl);
-                    alert("Link copied!");
-                  }}
-                  className="px-2 py-1 text-xs rounded border border-blue-600 text-blue-400"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-          )}
 
-          {/* DROPDOWN: Preset Style Selection */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setPresetsOpen(!presetsOpen)}
-              className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white text-xs flex items-center justify-between hover:bg-gray-900"
-            >
-              <span>Presets</span>
-              <span className={`transition-transform ${presetsOpen ? 'rotate-180' : ''}`}>
-                ▼
-              </span>
-            </button>
-
-            {presetsOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-black border border-gray-600 rounded shadow-lg z-10">
-                {Object.entries(presetStyles).map(([name]) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => applyGlobalPreset(name)}
-                    className={`w-full px-3 py-2 text-xs text-left rounded-none border-b border-gray-700 last:border-b-0 ${
-                      globalStyle.preset === name
-                        ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white"
-                        : "bg-black text-white hover:bg-gray-900"
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Size/Text/Bg Controls (now using globalStyle) */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <label className="flex items-center gap-1">
-              Size
-              <input
-                type="number"
-                min={12}
-                max={128}
-                value={globalStyle.fontSize}
-                onChange={(e) =>
-                  setGlobalStyle((prev) => ({
-                    ...prev,
-                    fontSize: Number(e.target.value || 36),
-                  }))
-                }
-                className="w-16 bg-black border border-gray-700 rounded px-1 py-[2px]"
-              />
-            </label>
-
-            <label className="flex items-center gap-1">
-              Text
-              <input
-                type="color"
-                value={globalStyle.color}
-                onChange={(e) =>
-                  setGlobalStyle((prev) => ({
-                    ...prev,
-                    color: e.target.value,
-                  }))
-                }
-                className="w-8 h-5 p-0 border border-gray-700 rounded"
-              />
-            </label>
-
-            <label className="flex items-center gap-1">
-              Bg
-              <input
-                type="color"
-                value={globalStyle.background.replace("rgba(0,0,0,", "").replace("0.6)", "0.6").slice(0,7)}
-                onChange={(e) =>
-                  setGlobalStyle((prev) => ({
-                    ...prev,
-                    background: e.target.value,
-                  }))
-                }
-                className="w-8 h-5 p-0 border border-gray-700 rounded"
-              />
-            </label>
-
-            <label className="flex items-center gap-1">
-              Font
-              <select
-                value={globalStyle.fontFamily}
-                onChange={(e) =>
-                  setGlobalStyle((prev) => ({
-                    ...prev,
-                    fontFamily: e.target.value,
-                  }))
-                }
-                className="bg-black border border-gray-700 rounded px-1 py-[1px] text-[11px]"
-              >
-                <option value="Inter, system-ui, sans-serif">Inter</option>
-                <option value="Poppins, system-ui, sans-serif">Poppins</option>
-                <option value="Roboto, system-ui, sans-serif">Roboto</option>
-                <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
-                <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
-                <option value="Courier Prime, monospace">Courier Prime</option>
-                <option value="Playfair Display, serif">Playfair Display</option>
-                <option value="Impact, system-ui, sans-serif">Impact</option>
-              </select>
-            </label>
-          </div>
-        </div>
-
-        {loading && <p>Generating subtitles...</p>}
-        {error && <p className="text-red-500 text-sm">{error}</p>}
-
-        <div className="space-y-2 mt-2 text-sm">
-          {segments.map((s, idx) => {
-            const padding = 0.15;
-            const isActive =
-              currentTime >= s.start - padding &&
-              currentTime < s.end + padding;
-
-            const plainText = segmentToText(s);
-            const words = plainText.split(" ");
-            const isSegmentSelected = selectedWord.segmentIndex === idx;
-
-            return (
-              <div
-                key={idx}
-                className={
-                  "border-l-4 rounded p-2 cursor-pointer transition-colors " +
-                  (isActive
-                    ? "border-l-blue-400 bg-zinc-900"
-                    : "border-l-transparent bg-black")
-                }
-                onClick={() => {
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = s.start;
-                    videoRef.current.play();
-                  }
-                }}
-              >
-                <div className="flex items-start gap-2">
-                  <span className="text-xs text-gray-400 mt-1">
-                    {idx + 1}.
-                  </span>
-                  <textarea
-                    value={plainText}
-                    onChange={(e) => {
-                      const newText = e.target.value;
-                      setSegments((prev) => {
-                        const copy = [...prev];
-                        const seg = copy[idx];
-                        copy[idx] = {
-                          ...seg,
-                          content: [{ text: newText }],
-                        };
-                        return copy;
-                      });
-                    }}
-                    className={
-                      "w-full bg-transparent outline-none resize-none text-sm " +
-                      (isActive ? "text-white" : "text-gray-200")
-                    }
-                    rows={1}
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-1 text-[11px] mt-1">
-                  {words.map((w, wIdx) => {
-                    const isSelected =
-                      selectedWord.segmentIndex === idx &&
-                      selectedWord.wordIndex === wIdx;
-
-                    return (
-                      <button
-                        key={wIdx}
-                        type="button"
-                        className={
-                          "px-1 py-[1px] rounded border " +
-                          (isSelected
-                            ? "border-blue-400 bg-blue-900"
-                            : "border-gray-600 bg-zinc-800")
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedWord({
-                            segmentIndex: idx,
-                            wordIndex: wIdx,
-                          });
-                        }}
-                      >
-                        {w}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {isSegmentSelected && selectedWord.wordIndex !== null && (
-                  <div className="mt-2 space-y-1 text-[11px]">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">Word:</span>
-                      <input
-                        type="color"
-                        value={wordStyleDraft.color}
-                        onChange={(e) =>
-                          setWordStyleDraft((prev) => ({
-                            ...prev,
-                            color: e.target.value,
-                          }))
-                        }
-                        className="w-8 h-5 p-0 border border-gray-700 rounded"
-                      />
-                      <input
-                       type="color"
-                       value={wordStyleDraft.background || "#000000"}
-                       onChange={(e) =>
-                       setWordStyleDraft((prev) => ({
-                        ...prev,
-                        background: e.target.value,
-                       }))
-                       }
-                      className="w-8 h-5 p-0 border border-gray-700 rounded"
-                      title="Word Background"
-                      />
-                      <select
-                        value={wordStyleDraft.fontFamily}
-                        onChange={(e) =>
-                          setWordStyleDraft((prev) => ({
-                            ...prev,
-                            fontFamily: e.target.value,
-                          }))
-                        }
-                        className="bg-black border border-gray-700 rounded px-1 py-[1px]"
-                      >
-                        <option value="Inter, system-ui, sans-serif">Inter</option>
-                        <option value="Poppins, system-ui, sans-serif">Poppins</option>
-                        <option value="Roboto, system-ui, sans-serif">Roboto</option>
-                        <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
-                        <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
-                        <option value="Courier Prime, monospace">Courier Prime</option>
-                        <option value="Playfair Display, serif">Playfair Display</option>
-                        <option value="Impact, system-ui, sans-serif">Impact</option>
-                      </select>
-                      <input
-                        type="number"
-                        min={8}
-                        max={128}
-                        value={wordStyleDraft.fontSize}
-                        onChange={(e) =>
-                          setWordStyleDraft((prev) => ({
-                            ...prev,
-                            fontSize: Number(e.target.value || 36),
-                          }))
-                        }
-                        className="w-12 bg-black border border-gray-700 rounded px-1 py-[1px]"
-                      />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setWordStyleDraft((prev) => ({
-                            ...prev,
-                            bold: !prev.bold,
-                          }));
-                        }}
-                        className={
-                          "px-2 py-[1px] rounded border " +
-                          (wordStyleDraft.bold
-                            ? "border-yellow-400 text-yellow-300"
-                            : "border-gray-600 text-gray-300")
-                        }
-                      >
-                        B
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          applyWordStyle(
-                            selectedWord.segmentIndex!,
-                            selectedWord.wordIndex!
-                          );
-                        }}
-                        className="px-2 py-[1px] rounded border border-blue-500 text-blue-300"
-                      >
-                        Apply
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="text-[11px] text-gray-500 flex items-center justify-between mt-2">
-                  <span>
-                    {s.start.toFixed(2)}s → {s.end.toFixed(2)}s
-                  </span>
-                  <span className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAddBelow(idx);
-                      }}
-                      className="px-1 py-[1px] text-[10px] border border-gray-600 rounded"
-                    >
-                      + split
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(idx);
-                      }}
-                      className="px-1 py-[1px] text-[10px] border border-red-500 text-red-400 rounded"
-                    >
-                      del
-                    </button>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-
-          {!loading && segments.length === 0 && (
-            <p className="text-xs text-gray-500">
-              Upload a video to generate Hinglish subtitles.
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="flex-1 flex flex-col items-center justify-center p-4">
-        {videoUrl ? (
-          <div className="relative inline-block">
-            <video
-              ref={videoRef}
-              src={videoUrl}
-              controls
-              className="max-h-[80vh] rounded shadow-lg"
+          {currentUser && (
+            <ProfileMenu
+              user={currentUser}
+              open={profileMenuOpen}
+              onToggle={() => setProfileMenuOpen((v) => !v)}
+              onOpenProjects={() => { setProjectsOpen(true); setProfileMenuOpen(false); }}
+              onLogout={handleLogout}
             />
+          )}
+        </div>
+      </header>
 
-            {activeSegment && (
-              <div
-                {...makePositionHandlers(segments.indexOf(activeSegment))}
-                className="pointer-events-auto absolute px-4 py-2 rounded max-w-[90%] text-center cursor-move"
-                style={{
-                  fontSize: `${globalStyle.fontSize}px`,
-                  background: globalStyle.background,
-                  fontFamily: globalStyle.fontFamily,
-                  left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
-                  top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
-                  transform: "translate(-50%, -50%)",
-                }}
-              >
-                {activeSegment.content.map((span, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      color: span.color ?? globalStyle.color,
-                      fontWeight: span.fontWeight ?? "normal",
-                      fontFamily:
-                        (span as any).fontFamily ?? globalStyle.fontFamily,
-                      fontSize:
-                        (span as any).fontSize ?? globalStyle.fontSize,
-                      background: 
-                        (span as any).background ?? globalStyle.background,
-                      padding: "2px 4px",
-                      margin: "0 1px",
-                      borderRadius: "2px",
+      {/* ── Main layout ── */}
+      <div className="cc-layout">
 
-                    }}
-                  >
-                    {span.text}
-                  </span>
-                ))}
-              </div>
-            )}
+        {/* ── Preview column ── */}
+        <section className="cc-preview-col">
+          {/* Dot-grid background pattern */}
+          <div className="cc-preview-bg" aria-hidden="true" />
+
+          <div className="cc-phone-wrap">
+            {/* Glow beneath phone */}
+            <div className="cc-phone-glow" />
+
+            <div className="cc-phone-frame">
+              {/* Phone notch */}
+              <div className="cc-phone-notch" />
+
+              {videoUrl ? (
+                <>
+                  <div className="cc-status-pill">
+                    <span className="cc-status-dot" />
+                    <span>Low res</span>
+                    <span className="cc-status-sep">·</span>
+                    <span className="cc-status-muted">Export uses original</span>
+                  </div>
+                  <video ref={videoRef} src={videoUrl} controls className="cc-phone-video" />
+                  {activeSegment && (
+                    <div
+                      {...makePositionHandlers(segments.indexOf(activeSegment))}
+                      className="cc-caption-overlay"
+                      style={{
+                        fontSize: `${globalStyle.fontSize}px`,
+                        background: globalStyle.background,
+                        fontFamily: globalStyle.fontFamily,
+                        left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
+                        top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
+                        transform: "translate(-50%, -50%)",
+                      }}
+                    >
+                      {activeSegment.content.map((span, i) => (
+                        <span key={i} style={{
+                          color: span.color ?? globalStyle.color,
+                          fontWeight: span.fontWeight ?? "normal",
+                          fontFamily: (span as any).fontFamily ?? globalStyle.fontFamily,
+                          fontSize: (span as any).fontSize ?? globalStyle.fontSize,
+                          background: (span as any).background ?? "transparent",
+                          padding: "2px 4px", margin: "0 1px", borderRadius: "3px",
+                        }}>
+                          {span.text}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <label className="cc-upload-zone">
+                  <div className="cc-upload-icon-wrap">
+                    <UploadIcon />
+                  </div>
+                  <p className="cc-upload-title">Drop a video to begin</p>
+                  <p className="cc-upload-sub">MP4 · MOV · WebM</p>
+                  <div className="cc-upload-browse">Browse files</div>
+                  <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+                </label>
+              )}
+
+              {/* Progress overlay */}
+              {uploadProgress !== null && uploadProgress < 100 && (
+                <div className="cc-progress-overlay">
+                  <div className="cc-progress-ring-wrap">
+                    <svg width="76" height="76" viewBox="0 0 76 76">
+                      <circle cx="38" cy="38" r="32" fill="none" stroke="rgba(168,85,247,0.15)" strokeWidth="4" />
+                      <circle cx="38" cy="38" r="32" fill="none" stroke="url(#prog-grad)" strokeWidth="4"
+                        strokeDasharray={`${2 * Math.PI * 32}`}
+                        strokeDashoffset={`${2 * Math.PI * 32 * (1 - uploadProgress / 100)}`}
+                        strokeLinecap="round"
+                        style={{ transformOrigin: "center", transform: "rotate(-90deg)", transition: "stroke-dashoffset 0.35s ease" }}
+                      />
+                      <defs>
+                        <linearGradient id="prog-grad" x1="0" y1="0" x2="1" y2="1">
+                          <stop offset="0%" stopColor="#a855f7" />
+                          <stop offset="100%" stopColor="#6366f1" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <span className="cc-progress-pct">{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <p className="cc-progress-label">
+                    {uploadProgress < 30 ? "Uploading video…" : uploadProgress < 80 ? "Transcribing audio…" : "Finalising…"}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <p className="text-gray-500 text-sm">
-            Upload a video to see the preview here.
-          </p>
-        )}
-      </section>
+        </section>
 
-      {/* Project History Modal */}
-      {projectsOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => setProjectsOpen(false)}
-        >
-          <div 
-            className="bg-black border border-gray-600 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-white">Project History</h2>
-              <button
-                onClick={() => setProjectsOpen(false)}
-                className="text-gray-400 hover:text-white text-2xl"
-              >
-                ×
+        {/* ── Right panel ── */}
+        <section className="cc-panel">
+
+          {/* Panel top bar */}
+          <div className="cc-panel-topbar">
+            <div className="cc-tabs-pill">
+              <button className={`cc-tab ${activeTab === "subtitles" ? "cc-tab-on" : ""}`} onClick={() => setActiveTab("subtitles")}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                Subtitles
+              </button>
+              <button className={`cc-tab ${activeTab === "music" ? "cc-tab-on" : ""}`} onClick={() => setActiveTab("music")}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                Music
               </button>
             </div>
 
-            {loadingProjects ? (
-              <p className="text-gray-400 text-center py-8">Loading projects...</p>
-            ) : projects.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No projects saved yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {projects.map((project) => {
-                  return (
+            <div className="cc-panel-controls">
+              <label className="cc-autoscroll-row">
+                <span className="cc-control-label">Auto-scroll</span>
+                <div className="cc-toggle cc-toggle-on" />
+              </label>
+              <button className="cc-chip-btn" onClick={() => setSettingsOpen(true)}>
+                <HighlightIcon />
+                <span>Highlight</span>
+              </button>
+              <button className="cc-icon-btn" onClick={() => setPresetsOpen((v) => !v)} title="Settings">
+                <SettingsIcon />
+              </button>
+            </div>
+          </div>
+
+          {/* Project row */}
+          <div className="cc-project-bar">
+            <div className="cc-project-title-wrap">
+              <input
+                type="text"
+                value={projectTitle}
+                onChange={(e) => setProjectTitle(e.target.value)}
+                placeholder="Untitled project"
+                className="cc-project-input"
+              />
+            </div>
+            <div className="cc-project-actions">
+              <div className="cc-project-collection-pill">
+                <span className="cc-project-collection-label">Collection</span>
+                <select
+                  value={selectedCollectionId || ""}
+                  onChange={(e) => {
+                    const val = e.target.value || null;
+                    setSelectedCollectionId(val);
+                  }}
+                  className="cc-project-collection-select"
+                >
+                  <option value="">None</option>
+                  {collections.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={handleSaveProject} disabled={!segments.length || saving} className="cc-btn cc-btn-primary">
+                <SaveIcon />
+                <span>{saving ? (uploadProgress !== null ? `${Math.round(uploadProgress)}%` : "Saving…") : currentProjectId ? "Update" : "Save"}</span>
+              </button>
+              <button onClick={() => setProjectsOpen(true)} className="cc-btn">
+                <FolderIcon /><span>Load</span>
+              </button>
+              <button onClick={handleDownloadSrt} disabled={!segments.length} className="cc-btn">
+                <ExportIcon /><span>SRT</span>
+              </button>
+              {shareToken ? (
+                <button onClick={handleRevokeShare} className="cc-btn cc-btn-danger">
+                  <ShareIcon /><span>Revoke</span>
+                </button>
+              ) : (
+                <button onClick={handleShareProject} disabled={!currentProjectId} className="cc-btn">
+                  <ShareIcon /><span>Share</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="cc-error-banner">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Subtitles list */}
+          {activeTab === "subtitles" && (
+            <div className="cc-subs-list">
+              {loading && (
+                <div className="cc-state-center">
+                  <div className="cc-spin-ring" />
+                  <p className="cc-state-text">Generating captions…</p>
+                </div>
+              )}
+
+              {!loading && segments.length === 0 && (
+                <div className="cc-empty-state">
+                  <div className="cc-empty-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+                    </svg>
+                  </div>
+                  <p className="cc-empty-title">No captions yet</p>
+                  <p className="cc-empty-sub">Upload a video to generate your transcript</p>
+                </div>
+              )}
+
+              {segments.map((s, idx) => {
+                const padding = 0.15;
+                const isActive = currentTime >= s.start - padding && currentTime < s.end + padding;
+                const plainText = segmentToText(s);
+                const words = plainText.split(" ");
+                const isSegmentSelected = selectedWord.segmentIndex === idx;
+
+                return (
                   <div
-                    key={project.id}
-                    className={`border rounded p-3 cursor-pointer transition-colors ${
-                      currentProjectId === project.id
-                        ? "border-blue-500 bg-blue-900 bg-opacity-20"
-                        : "border-gray-600 hover:border-gray-500"
-                    }`}
-                    onClick={() => handleLoadProject(project.id)}
+                    key={idx}
+                    className={`cc-segment ${isActive ? "cc-segment-active" : ""}`}
+                    onClick={() => {
+                      if (videoRef.current) { videoRef.current.currentTime = s.start; videoRef.current.play(); }
+                    }}
                   >
-                    <div className="flex gap-3">
-                      {project.thumbnail_url && (
-                        <img
-                          src={project.thumbnail_url}
-                          alt={project.title}
-                          className="w-24 h-16 object-cover rounded border border-gray-700"
-                        />
-                      )}
-                      <div className="flex-1 flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-white mb-1">
-                            {project.title}
-                          </h3>
-                          <p className="text-xs text-gray-400">
-                            {project.segments.length} segments • 
-                            Updated: {new Date(project.updated_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          {currentProjectId === project.id && (
-                            <span className="text-xs text-blue-400 px-2 py-1 border border-blue-500 rounded">
-                              Current
-                            </span>
-                          )}
-                          <button
-                            onClick={(e) => handleDeleteProject(project.id, e)}
-                            className="text-xs text-red-400 hover:text-red-300 px-2 py-1 border border-red-500 rounded"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                    {/* Active bar */}
+                    {isActive && <div className="cc-segment-bar" />}
+
+                    {/* Timestamp + controls row */}
+                    <div className="cc-seg-header">
+                      <div className="cc-timestamps">
+                        <span className="cc-ts">{s.start.toFixed(2)}</span>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="cc-ts-arrow"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>
+                        <span className="cc-ts">{s.end.toFixed(2)}</span>
+                      </div>
+                      <div className="cc-seg-controls">
+                        <button type="button" className="cc-ctrl-btn" title="Move up">
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18,15 12,9 6,15"/></svg>
+                        </button>
+                        <button type="button" className="cc-ctrl-btn" title="Move down">
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleAddBelow(idx); }} className="cc-split-btn">
+                          <SplitIcon /><span>Split</span>
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(idx); }} className="cc-del-btn">
+                          <TrashIcon />
+                        </button>
                       </div>
                     </div>
+
+                    {/* Text area */}
+                    <textarea
+                      value={plainText}
+                      onChange={(e) => {
+                        const newText = e.target.value;
+                        setSegments((prev) => {
+                          const copy = [...prev];
+                          copy[idx] = { ...copy[idx], content: [{ text: newText }] };
+                          return copy;
+                        });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="cc-seg-textarea"
+                      rows={2}
+                    />
+
+                    {/* Word chips */}
+                    <div className="cc-word-chips">
+                      {words.map((w, wIdx) => {
+                        const isSel = selectedWord.segmentIndex === idx && selectedWord.wordIndex === wIdx;
+                        return (
+                          <button
+                            key={wIdx}
+                            type="button"
+                            className={`cc-chip ${isSel ? "cc-chip-on" : ""}`}
+                            onClick={(e) => { e.stopPropagation(); setSelectedWord({ segmentIndex: idx, wordIndex: wIdx }); }}
+                          >
+                            {w}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Word style panel */}
+                    {isSegmentSelected && selectedWord.wordIndex !== null && (
+                      <div className="cc-word-style" onClick={(e) => e.stopPropagation()}>
+                        <span className="cc-word-style-label">Word Style</span>
+                        <div className="cc-word-style-row">
+                          <label className="cc-color-field" title="Text color">
+                            <span>Text</span>
+                            <input type="color" value={wordStyleDraft.color} onChange={(e) => setWordStyleDraft((p) => ({ ...p, color: e.target.value }))} className="cc-color-input" />
+                          </label>
+                          <label className="cc-color-field" title="Background">
+                            <span>Bg</span>
+                            <input type="color" value={wordStyleDraft.background || "#000000"} onChange={(e) => setWordStyleDraft((p) => ({ ...p, background: e.target.value }))} className="cc-color-input" />
+                          </label>
+                          <select value={wordStyleDraft.fontFamily} onChange={(e) => setWordStyleDraft((p) => ({ ...p, fontFamily: e.target.value }))} className="cc-mini-sel">
+                            <option value="Inter, system-ui, sans-serif">Inter</option>
+                            <option value="Poppins, system-ui, sans-serif">Poppins</option>
+                            <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                            <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
+                            <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
+                            <option value="Courier Prime, monospace">Courier Prime</option>
+                            <option value="Playfair Display, serif">Playfair Display</option>
+                            <option value="Impact, system-ui, sans-serif">Impact</option>
+                          </select>
+                          <input type="number" min={8} max={128} value={wordStyleDraft.fontSize} onChange={(e) => setWordStyleDraft((p) => ({ ...p, fontSize: Number(e.target.value || 36) }))} className="cc-mini-num" />
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setWordStyleDraft((p) => ({ ...p, bold: !p.bold })); }} className={`cc-bold-btn ${wordStyleDraft.bold ? "cc-bold-on" : ""}`}>B</button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); applyWordStyle(selectedWord.segmentIndex!, selectedWord.wordIndex!); }} className="cc-apply-btn">Apply</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  );
-                })}
+                );
+              })}
+            </div>
+          )}
+
+          {activeTab === "music" && (
+            <div className="cc-state-center">
+              <div className="cc-empty-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
+              </div>
+              <p className="cc-empty-title">Music coming soon</p>
+            </div>
+          )}
+
+          {/* ── Style footer ── */}
+          <div className="cc-style-footer">
+            {/* Fade-out at top of footer */}
+            <div className="cc-footer-fade" />
+
+            <div className="cc-style-tabrow">
+              <button className={`cc-style-tab ${styleTab === "classic" ? "cc-style-tab-on" : ""}`} onClick={() => setStyleTab("classic")}>Classic</button>
+              <button className={`cc-style-tab ${styleTab === "dynamic" ? "cc-style-tab-on" : ""}`} onClick={() => setStyleTab("dynamic")}>Dynamic</button>
+              <button onClick={() => {}} className="cc-reset-btn ml-auto">Reset edits</button>
+            </div>
+
+            {/* Preset horizontal scroll */}
+            <div className="cc-presets">
+              {Object.entries(presetStyles).map(([name, style]) => {
+                const isOn = globalStyle.preset === name;
+                const bgIsGradient = typeof style.background === "string" && style.background.startsWith("linear");
+                const cardBg = bgIsGradient ? "rgba(40,20,60,0.95)" : style.background;
+                return (
+                  <button
+                    key={name}
+                    onClick={() => applyGlobalPreset(name)}
+                    className={`cc-preset-card ${isOn ? "cc-preset-on" : ""}`}
+                    style={{ fontFamily: style.fontFamily, background: cardBg }}
+                  >
+                    {isOn && <div className="cc-preset-check">✓</div>}
+                    <span className="cc-preset-name" style={{
+                      color: style.color === "#000000" ? "#fff" : style.color,
+                      textShadow: "0 1px 8px rgba(0,0,0,0.9)",
+                    }}>
+                      {name}
+                    </span>
+                    {bgIsGradient && (
+                      <div className="cc-preset-gradient-pill" style={{ background: style.background }} />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Global controls */}
+            <div className="cc-global-row">
+              <label className="cc-ctrl-field">
+                <span>Size</span>
+                <input type="number" min={12} max={128} value={globalStyle.fontSize} onChange={(e) => setGlobalStyle((p) => ({ ...p, fontSize: Number(e.target.value || 36) }))} className="cc-mini-num" />
+              </label>
+              <label className="cc-ctrl-field">
+                <span>Text</span>
+                <input type="color" value={globalStyle.color} onChange={(e) => setGlobalStyle((p) => ({ ...p, color: e.target.value }))} className="cc-color-input" />
+              </label>
+              <label className="cc-ctrl-field">
+                <span>Bg</span>
+                <input type="color" value={globalStyle.background.slice(0, 7)} onChange={(e) => setGlobalStyle((p) => ({ ...p, background: e.target.value }))} className="cc-color-input" />
+              </label>
+              <label className="cc-ctrl-field">
+                <span>Font</span>
+                <select value={globalStyle.fontFamily} onChange={(e) => setGlobalStyle((p) => ({ ...p, fontFamily: e.target.value }))} className="cc-mini-sel">
+                  <option value="Inter, system-ui, sans-serif">Inter</option>
+                  <option value="Poppins, system-ui, sans-serif">Poppins</option>
+                  <option value="Roboto, system-ui, sans-serif">Roboto</option>
+                  <option value="Montserrat, system-ui, sans-serif">Montserrat</option>
+                  <option value="Orbitron, system-ui, sans-serif">Orbitron</option>
+                  <option value="Courier Prime, monospace">Courier</option>
+                  <option value="Playfair Display, serif">Playfair</option>
+                  <option value="Impact, system-ui, sans-serif">Impact</option>
+                </select>
+              </label>
+            </div>
+
+            {/* Share URL */}
+            {shareUrl && (
+              <div className="cc-share-row">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="cc-share-icon"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <input type="text" value={shareUrl} readOnly className="cc-share-input" />
+                <button onClick={() => navigator.clipboard.writeText(shareUrl)} className="cc-share-copy">Copy</button>
+              </div>
+            )}
+
+            {/* Thumbnail */}
+            {thumbnailUrl && (
+              <div className="cc-thumb-wrap">
+                <img src={thumbnailUrl} alt="Thumbnail" className="cc-thumb-img" />
+                <label className="cc-thumb-overlay">
+                  <input type="file" accept="image/*" onChange={handleThumbnailUpload} className="hidden" />
+                  <span className="cc-thumb-btn">Change</span>
+                </label>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* ── Highlight Words Modal ── */}
+      {settingsOpen && (
+        <div className="cc-modal-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="cc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cc-modal-header">
+              <div className="cc-modal-title-row">
+                <div className="cc-modal-icon"><HighlightIcon /></div>
+                <h2 className="cc-modal-title">Highlight Words</h2>
+              </div>
+              <button onClick={() => setSettingsOpen(false)} className="cc-modal-close">×</button>
+            </div>
+            <p className="cc-modal-desc">Click words to toggle highlight. Highlighted words appear with special styling in your captions.</p>
+            <div className="cc-highlight-chips">
+              {segments.flatMap((s) => segmentToText(s).split(" ")).filter(Boolean).map((word, i) => (
+                <button key={i} className="cc-highlight-chip">{word}</button>
+              ))}
+            </div>
+            <div className="cc-modal-footer">
+              <button onClick={() => setSettingsOpen(false)} className="cc-modal-done">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Projects Modal ── */}
+      {projectsOpen && (
+        <div className="cc-modal-backdrop" onClick={() => { setProjectsOpen(false); setCollectionsDropdownOpen(false); }}>
+          <div className="cc-modal cc-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="cc-modal-header">
+              <h2 className="cc-modal-title">Project History</h2>
+              <div className="cc-modal-header-right">
+                <div className="cc-collection-filter">
+                  <button
+                    type="button"
+                    className="cc-collection-filter-btn"
+                    onClick={() => setCollectionsDropdownOpen((v) => !v)}
+                  >
+                    <span>{collectionFilterId ? (collections.find(c => c.id === collectionFilterId)?.name || "Collection") : "All collections"}</span>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6,9 12,15 18,9" />
+                    </svg>
+                  </button>
+                  {collectionsDropdownOpen && (
+                    <div className="cc-collection-dropdown">
+                      <button
+                        type="button"
+                        className={`cc-collection-item ${!collectionFilterId ? "cc-collection-item-on" : ""}`}
+                        onClick={() => {
+                          setCollectionFilterId(null);
+                          setCollectionsDropdownOpen(false);
+                        }}
+                      >
+                        All projects
+                      </button>
+                      <div className="cc-collection-divider" />
+                      {collectionsLoading && (
+                        <div className="cc-collection-loading">Loading…</div>
+                      )}
+                      {!collectionsLoading && collections.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`cc-collection-item ${collectionFilterId === c.id ? "cc-collection-item-on" : ""}`}
+                          onClick={() => {
+                            setCollectionFilterId(c.id);
+                            setCollectionsDropdownOpen(false);
+                          }}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="cc-collection-new"
+                        onClick={async () => {
+                          const name = window.prompt("New collection name");
+                          if (!name) return;
+                          try {
+                            const created = await createCollection({ name });
+                            setCollections((prev) => [created, ...prev]);
+                            setSelectedCollectionId(created.id);
+                            setCollectionFilterId(created.id);
+                            setCollectionsDropdownOpen(false);
+                            await loadProjectsList();
+                          } catch (err: any) {
+                            setError(err.message ?? "Failed to create collection");
+                          }
+                        }}
+                      >
+                        + New collection
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setProjectsOpen(false)} className="cc-modal-close">×</button>
+              </div>
+            </div>
+            {loadingProjects ? (
+              <div className="cc-state-center" style={{ minHeight: 160 }}>
+                <div className="cc-spin-ring" />
+              </div>
+            ) : projects.length === 0 ? (
+              <p className="cc-modal-empty">No projects saved yet.</p>
+            ) : (
+              <div className="cc-proj-list">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    className={`cc-proj-card ${currentProjectId === project.id ? "cc-proj-card-on" : ""}`}
+                    onClick={() => handleLoadProject(project.id)}
+                  >
+                    {project.thumbnail_url && (
+                      <img src={project.thumbnail_url} alt={project.title} className="cc-proj-thumb" />
+                    )}
+                    <div className="cc-proj-info">
+                      <p className="cc-proj-title">{project.title}</p>
+                      <p className="cc-proj-meta">{project.segments.length} segments · {new Date(project.updated_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="cc-proj-badges">
+                      {currentProjectId === project.id && <span className="cc-proj-badge-current">Current</span>}
+                      <button onClick={(e) => handleDeleteProject(project.id, e)} className="cc-proj-badge-del">Delete</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
       )}
-      </div>
+
+      {/* ── All styles ── */}
+      <style>{`
+        /* ── Reset & Root ── */
+        *, *::before, *::after { box-sizing: border-box; }
+
+        .cc-root {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background: #07070b;
+          color: #e2e8f0;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        /* ── Loading screen ── */
+        .cc-loading-screen {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #07070b;
+        }
+        .cc-loading-inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+        }
+        .cc-loading-logo {
+          width: 48px; height: 48px;
+          border-radius: 14px;
+          background: radial-gradient(circle at 25% 25%, #c084fc, #6366f1);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px; font-weight: 900; color: white;
+          box-shadow: 0 0 40px rgba(168,85,247,0.4);
+        }
+        .cc-loading-spinner {
+          width: 28px; height: 28px;
+          border-radius: 50%;
+          border: 2px solid rgba(168,85,247,0.15);
+          border-top-color: #a855f7;
+          animation: cc-spin 0.8s linear infinite;
+        }
+        .cc-loading-text { font-size: 13px; color: #475569; }
+
+        /* ── Top bar ── */
+        .cc-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          height: 56px;
+          padding: 0 20px;
+          background: rgba(7,7,11,0.96);
+          border-bottom: 1px solid rgba(255,255,255,0.055);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          position: sticky;
+          top: 0;
+          z-index: 40;
+        }
+        .cc-topbar-left { display: flex; align-items: center; gap: 10px; }
+        .cc-topbar-right { display: flex; align-items: center; gap: 10px; }
+
+        .cc-logo {
+          width: 34px; height: 34px;
+          border-radius: 10px;
+          background: radial-gradient(circle at 20% 20%, #c084fc, #6366f1);
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 0 0 1px rgba(255,255,255,0.1), 0 6px 24px rgba(129,140,248,0.45);
+        }
+        .cc-logo span { font-size: 11px; font-weight: 900; color: white; letter-spacing: -0.5px; }
+
+        .cc-brand { display: flex; flex-direction: column; gap: 1px; }
+        .cc-brand-name { font-size: 13px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; line-height: 1; }
+        .cc-brand-sub { font-size: 10px; color: #4b5563; line-height: 1; letter-spacing: 0.5px; text-transform: uppercase; }
+
+        .cc-topbar-sep { width: 1px; height: 22px; background: rgba(255,255,255,0.07); margin: 0 4px; }
+
+        .cc-video-picker {
+          display: flex; align-items: center; gap: 7px;
+          padding: 6px 13px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.025);
+          cursor: pointer;
+          font-size: 12px; color: #94a3b8;
+          transition: all 0.2s;
+          white-space: nowrap;
+        }
+        .cc-video-picker:hover {
+          background: rgba(168,85,247,0.07);
+          border-color: rgba(168,85,247,0.25);
+          color: #d8b4fe;
+        }
+        .cc-video-picker svg { flex-shrink: 0; opacity: 0.6; transition: opacity 0.2s; }
+        .cc-video-picker:hover svg { opacity: 1; }
+
+        .cc-export-group {
+          display: flex; align-items: stretch;
+          border-radius: 9px;
+          overflow: hidden;
+          border: 1px solid rgba(168,85,247,0.35);
+          box-shadow: 0 0 20px rgba(168,85,247,0.12);
+        }
+        .cc-export-btn {
+          display: flex; align-items: center; gap: 6px;
+          padding: 7px 16px;
+          background: linear-gradient(130deg, #7c3aed 0%, #a855f7 100%);
+          color: white; font-size: 13px; font-weight: 600;
+          border: none; cursor: pointer;
+          transition: filter 0.18s;
+          letter-spacing: -0.2px;
+        }
+        .cc-export-btn:hover:not(:disabled) { filter: brightness(1.12); }
+        .cc-export-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .cc-export-divider { width: 1px; background: rgba(255,255,255,0.12); }
+        .cc-export-select {
+          padding: 7px 10px;
+          background: rgba(124,58,237,0.25);
+          color: #c4b5fd; font-size: 11px;
+          border: none; cursor: pointer; outline: none;
+          transition: background 0.15s;
+        }
+        .cc-export-select:hover { background: rgba(124,58,237,0.4); }
+
+        /* ── Layout ── */
+        .cc-layout {
+          display: flex;
+          flex: 1;
+          min-height: 0;
+        }
+
+        /* ── Preview column ── */
+        .cc-preview-col {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 32px;
+          position: relative;
+          overflow: hidden;
+          min-height: calc(100vh - 56px);
+        }
+        .cc-preview-bg {
+          position: absolute; inset: 0; z-index: 0;
+          background-color: rgba(0,0,0,0.5);
+          background-image: radial-gradient(rgba(168,85,247,0.08) 1px, transparent 1px);
+          background-size: 24px 24px;
+          -webkit-mask-image: radial-gradient(ellipse 80% 80% at center, black 40%, transparent 100%);
+          mask-image: radial-gradient(ellipse 80% 80% at center, black 40%, transparent 100%);
+        }
+
+        .cc-phone-wrap {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .cc-phone-glow {
+          position: absolute;
+          width: 260px; height: 260px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 70%);
+          bottom: -60px;
+          left: 50%;
+          transform: translateX(-50%);
+          pointer-events: none;
+          z-index: -1;
+        }
+
+        .cc-phone-frame {
+          position: relative;
+          width: 304px;
+          min-height: 548px;
+          border-radius: 40px;
+          background: #050507;
+          border: 2px solid rgba(255,255,255,0.09);
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow:
+            0 0 0 1px rgba(255,255,255,0.035),
+            0 2px 0 rgba(255,255,255,0.06) inset,
+            0 48px 120px rgba(0,0,0,0.85),
+            0 0 0 6px rgba(255,255,255,0.025),
+            0 0 80px rgba(168,85,247,0.07);
+        }
+        .cc-phone-notch {
+          position: absolute;
+          top: 10px; left: 50%;
+          transform: translateX(-50%);
+          width: 90px; height: 24px;
+          background: #050507;
+          border-radius: 0 0 14px 14px;
+          z-index: 20;
+          border: 1px solid rgba(255,255,255,0.06);
+          border-top: none;
+        }
+
+        .cc-status-pill {
+          position: absolute;
+          top: 44px; left: 14px; z-index: 10;
+          display: flex; align-items: center; gap: 5px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          background: rgba(0,0,0,0.7);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.07);
+          font-size: 10px; color: #94a3b8;
+        }
+        .cc-status-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #f97316;
+          box-shadow: 0 0 7px #f97316;
+          animation: cc-pulse 2s ease-in-out infinite;
+        }
+        .cc-status-sep { color: rgba(255,255,255,0.2); }
+        .cc-status-muted { color: #64748b; }
+
+        .cc-phone-video {
+          width: 100%; height: 100%;
+          object-fit: cover;
+          border-radius: 38px;
+        }
+        .cc-caption-overlay {
+          pointer-events: auto;
+          position: absolute;
+          padding: 8px 14px;
+          border-radius: 10px;
+          max-width: 88%;
+          text-align: center;
+          cursor: move;
+          box-shadow: 0 2px 20px rgba(0,0,0,0.8);
+        }
+
+        /* Upload zone */
+        .cc-upload-zone {
+          display: flex; flex-direction: column; align-items: center;
+          padding: 48px 28px;
+          cursor: pointer; text-align: center;
+          width: 100%;
+        }
+        .cc-upload-icon-wrap {
+          width: 60px; height: 60px;
+          border-radius: 18px;
+          background: rgba(168,85,247,0.1);
+          border: 1px solid rgba(168,85,247,0.2);
+          display: flex; align-items: center; justify-content: center;
+          color: #a855f7;
+          transition: all 0.2s;
+        }
+        .cc-upload-zone:hover .cc-upload-icon-wrap {
+          background: rgba(168,85,247,0.18);
+          border-color: rgba(168,85,247,0.4);
+          box-shadow: 0 0 20px rgba(168,85,247,0.2);
+        }
+        .cc-upload-title { font-size: 14px; font-weight: 600; color: #cbd5e1; margin-top: 14px; }
+        .cc-upload-sub { font-size: 11px; color: #475569; margin-top: 4px; letter-spacing: 0.5px; }
+        .cc-upload-browse {
+          margin-top: 18px;
+          padding: 9px 22px;
+          border-radius: 22px;
+          background: linear-gradient(130deg, #7c3aed, #a855f7);
+          color: white; font-size: 12px; font-weight: 600;
+          box-shadow: 0 4px 20px rgba(168,85,247,0.35);
+          transition: filter 0.18s;
+        }
+        .cc-upload-zone:hover .cc-upload-browse { filter: brightness(1.1); }
+
+        /* Progress */
+        .cc-progress-overlay {
+          position: absolute; inset: 0;
+          background: rgba(0,0,0,0.88);
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          border-radius: 38px;
+          z-index: 20;
+          backdrop-filter: blur(8px);
+        }
+        .cc-progress-ring-wrap {
+          position: relative;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .cc-progress-pct {
+          position: absolute;
+          font-size: 14px; font-weight: 800; color: #c084fc;
+          letter-spacing: -0.5px;
+        }
+        .cc-progress-label {
+          font-size: 12px; color: #94a3b8; margin-top: 14px; font-weight: 500;
+        }
+
+        /* ── Right panel ── */
+        .cc-panel {
+          width: 476px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          background: #08080d;
+          border-left: 1px solid rgba(255,255,255,0.05);
+          height: calc(100vh - 56px);
+          overflow: hidden;
+          position: relative;
+        }
+
+        /* Panel topbar */
+        .cc-panel-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 11px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          flex-shrink: 0;
+          gap: 8px;
+          background: rgba(255,255,255,0.01);
+        }
+        .cc-tabs-pill {
+          display: flex;
+          background: rgba(255,255,255,0.04);
+          border-radius: 9px;
+          padding: 3px;
+          border: 1px solid rgba(255,255,255,0.04);
+        }
+        .cc-tab {
+          display: flex; align-items: center; gap: 5px;
+          padding: 5px 12px;
+          border-radius: 7px;
+          font-size: 12px; font-weight: 500;
+          color: #475569; cursor: pointer;
+          border: none; background: none;
+          transition: all 0.18s;
+          letter-spacing: -0.1px;
+        }
+        .cc-tab:hover:not(.cc-tab-on) { color: #94a3b8; }
+        .cc-tab-on {
+          background: linear-gradient(130deg, #7c3aed, #a855f7);
+          color: white;
+          box-shadow: 0 2px 10px rgba(168,85,247,0.35);
+        }
+
+        .cc-panel-controls { display: flex; align-items: center; gap: 6px; }
+        .cc-autoscroll-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+        .cc-control-label { font-size: 11px; color: #475569; white-space: nowrap; }
+
+        .cc-toggle {
+          width: 30px; height: 17px; border-radius: 9px;
+          position: relative; cursor: pointer; flex-shrink: 0;
+        }
+        .cc-toggle::after {
+          content: '';
+          position: absolute;
+          width: 13px; height: 13px; border-radius: 50%;
+          background: white; top: 2px; left: 15px;
+          transition: left 0.2s;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        }
+        .cc-toggle-on { background: linear-gradient(130deg, #7c3aed, #a855f7); }
+
+        .cc-chip-btn {
+          display: flex; align-items: center; gap: 4px;
+          padding: 5px 10px;
+          border-radius: 7px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.025);
+          color: #64748b; font-size: 11px; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .cc-chip-btn:hover { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.3); color: #c4b5fd; }
+        .cc-icon-btn {
+          width: 30px; height: 30px;
+          border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.025);
+          color: #4b5563; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .cc-icon-btn:hover { color: #a855f7; border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.06); }
+
+        /* Project bar */
+        .cc-project-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          flex-shrink: 0;
+        }
+        .cc-project-title-wrap { flex: 1; min-width: 0; }
+        .cc-project-input {
+          width: 100%;
+          background: transparent; border: none; outline: none;
+          font-size: 13px; font-weight: 600;
+          color: #e2e8f0;
+          letter-spacing: -0.2px;
+        }
+        .cc-project-input::placeholder { color: #2d3748; }
+        .cc-project-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .cc-project-collection-pill {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(15,23,42,0.7);
+        }
+        .cc-project-collection-label {
+          font-size: 10px;
+          color: #475569;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+        .cc-project-collection-select {
+          background: transparent;
+          border: none;
+          outline: none;
+          color: #94a3b8;
+          font-size: 11px;
+        }
+
+        .cc-btn {
+          display: flex; align-items: center; gap: 4px;
+          padding: 5px 10px;
+          border-radius: 7px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.025);
+          color: #64748b; font-size: 11px; font-weight: 500;
+          cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+        .cc-btn:hover:not(:disabled) { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: #94a3b8; }
+        .cc-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .cc-btn-primary {
+          background: rgba(124,58,237,0.2);
+          border-color: rgba(168,85,247,0.4);
+          color: #c4b5fd;
+        }
+        .cc-btn-primary:hover:not(:disabled) { background: rgba(124,58,237,0.35); border-color: rgba(168,85,247,0.6); }
+        .cc-btn-danger { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); color: #fca5a5; }
+        .cc-btn-danger:hover { background: rgba(239,68,68,0.15) !important; }
+
+        /* Error */
+        .cc-error-banner {
+          display: flex; align-items: center; gap: 7px;
+          margin: 0 14px 4px;
+          padding: 9px 12px;
+          border-radius: 8px;
+          background: rgba(127,29,29,0.35);
+          border: 1px solid rgba(239,68,68,0.25);
+          color: #fca5a5; font-size: 11px;
+          flex-shrink: 0;
+        }
+
+        /* Subtitles list */
+        .cc-subs-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 8px 12px 12px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(168,85,247,0.18) transparent;
+        }
+        .cc-subs-list::-webkit-scrollbar { width: 4px; }
+        .cc-subs-list::-webkit-scrollbar-track { background: transparent; }
+        .cc-subs-list::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.2); border-radius: 4px; }
+
+        /* States */
+        .cc-state-center {
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          flex: 1; padding: 40px 20px; gap: 12px;
+        }
+        .cc-spin-ring {
+          width: 28px; height: 28px;
+          border-radius: 50%;
+          border: 2px solid rgba(168,85,247,0.15);
+          border-top-color: #a855f7;
+          animation: cc-spin 0.7s linear infinite;
+        }
+        .cc-state-text { font-size: 12px; color: #475569; }
+
+        .cc-empty-state {
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          padding: 60px 20px; gap: 10px;
+          text-align: center;
+        }
+        .cc-empty-icon {
+          width: 52px; height: 52px;
+          border-radius: 14px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+          display: flex; align-items: center; justify-content: center;
+          color: #2d3748;
+          margin-bottom: 4px;
+        }
+        .cc-empty-title { font-size: 13px; font-weight: 600; color: #4b5563; }
+        .cc-empty-sub { font-size: 11px; color: #2d3748; line-height: 1.5; }
+
+        /* Segment */
+        .cc-segment {
+          position: relative;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.045);
+          background: rgba(255,255,255,0.015);
+          padding: 10px 12px 10px 14px;
+          margin-bottom: 5px;
+          cursor: pointer;
+          transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+          overflow: hidden;
+        }
+        .cc-segment:hover {
+          border-color: rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.025);
+        }
+        .cc-segment-active {
+          border-color: rgba(168,85,247,0.4) !important;
+          background: rgba(168,85,247,0.05) !important;
+          box-shadow: 0 0 0 1px rgba(168,85,247,0.12) inset;
+        }
+        .cc-segment-bar {
+          position: absolute;
+          left: 0; top: 0; bottom: 0;
+          width: 3px;
+          background: linear-gradient(180deg, #a855f7, #6366f1);
+          border-radius: 2px 0 0 2px;
+        }
+
+        .cc-seg-header {
+          display: flex; align-items: center; gap: 6px;
+          margin-bottom: 6px;
+        }
+        .cc-timestamps {
+          display: flex; align-items: center; gap: 4px;
+        }
+        .cc-ts {
+          font-size: 10px; color: #334155;
+          font-variant-numeric: tabular-nums;
+          font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+          letter-spacing: 0.3px;
+        }
+        .cc-ts-arrow { color: #1e293b; flex-shrink: 0; }
+        .cc-segment-active .cc-ts { color: #7c3aed; }
+        .cc-segment-active .cc-ts-arrow { color: rgba(124,58,237,0.5); }
+
+        .cc-seg-controls {
+          display: flex; align-items: center; gap: 3px;
+          margin-left: auto;
+        }
+        .cc-ctrl-btn {
+          width: 20px; height: 20px; border-radius: 5px;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid rgba(255,255,255,0.05);
+          background: transparent; color: #2d3748; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .cc-ctrl-btn:hover { color: #64748b; border-color: rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); }
+        .cc-split-btn {
+          display: flex; align-items: center; gap: 3px;
+          padding: 3px 7px; border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: transparent; color: #334155; font-size: 10px;
+          cursor: pointer; transition: all 0.15s;
+        }
+        .cc-split-btn:hover { color: #64748b; border-color: rgba(255,255,255,0.12); }
+        .cc-del-btn {
+          width: 22px; height: 22px; border-radius: 5px;
+          display: flex; align-items: center; justify-content: center;
+          border: 1px solid rgba(239,68,68,0.15);
+          background: rgba(239,68,68,0.04);
+          color: rgba(239,68,68,0.6); cursor: pointer;
+          transition: all 0.15s;
+        }
+        .cc-del-btn:hover { background: rgba(239,68,68,0.14); color: #ef4444; border-color: rgba(239,68,68,0.3); }
+
+        .cc-seg-textarea {
+          width: 100%; background: transparent; border: none; outline: none;
+          font-size: 13px; color: #94a3b8; resize: none; line-height: 1.55;
+          font-family: inherit;
+          transition: color 0.15s;
+        }
+        .cc-segment-active .cc-seg-textarea { color: #cbd5e1; }
+
+        /* Word chips */
+        .cc-word-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+        .cc-chip {
+          padding: 2px 7px; border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.02);
+          color: #2d3748; font-size: 10px; cursor: pointer;
+          transition: all 0.15s; letter-spacing: 0.1px;
+        }
+        .cc-chip:hover { border-color: rgba(168,85,247,0.25); color: #64748b; }
+        .cc-chip-on {
+          border-color: rgba(168,85,247,0.5) !important;
+          background: rgba(168,85,247,0.1) !important;
+          color: #c4b5fd !important;
+        }
+
+        /* Word style panel */
+        .cc-word-style {
+          margin-top: 8px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: rgba(0,0,0,0.3);
+          border: 1px solid rgba(255,255,255,0.055);
+        }
+        .cc-word-style-label {
+          display: block;
+          font-size: 9px; color: #334155;
+          text-transform: uppercase; letter-spacing: 0.8px;
+          font-weight: 600; margin-bottom: 8px;
+        }
+        .cc-word-style-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .cc-color-field {
+          display: flex; flex-direction: column; align-items: center; gap: 2px;
+          cursor: pointer;
+          font-size: 9px; color: #334155; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .cc-color-input {
+          width: 28px; height: 20px; padding: 1px;
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 4px; cursor: pointer; overflow: hidden;
+          background: none;
+        }
+        .cc-mini-sel {
+          padding: 3px 6px; border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.03);
+          color: #94a3b8; font-size: 10px; outline: none;
+        }
+        .cc-mini-num {
+          width: 44px; padding: 3px 6px; border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.03);
+          color: #94a3b8; font-size: 10px; outline: none; text-align: center;
+        }
+        .cc-bold-btn {
+          padding: 3px 8px; border-radius: 5px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: transparent; color: #475569;
+          font-size: 12px; font-weight: 800; cursor: pointer; transition: all 0.15s;
+        }
+        .cc-bold-on { border-color: rgba(251,191,36,0.35); color: #fbbf24; background: rgba(251,191,36,0.07); }
+        .cc-apply-btn {
+          padding: 3px 11px; border-radius: 5px;
+          border: 1px solid rgba(168,85,247,0.35);
+          background: rgba(168,85,247,0.1);
+          color: #c4b5fd; font-size: 10px; cursor: pointer; transition: all 0.15s;
+        }
+        .cc-apply-btn:hover { background: rgba(168,85,247,0.22); }
+
+        /* Style footer */
+        .cc-style-footer {
+          position: relative;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          padding: 12px 14px 14px;
+          background: rgba(0,0,0,0.35);
+          flex-shrink: 0;
+        }
+        .cc-footer-fade {
+          position: absolute;
+          top: -24px; left: 0; right: 0;
+          height: 24px;
+          background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.35));
+          pointer-events: none;
+        }
+
+        .cc-style-tabrow {
+          display: flex; align-items: center; gap: 4px;
+          margin-bottom: 10px;
+        }
+        .cc-style-tab {
+          padding: 4px 14px; border-radius: 20px;
+          font-size: 12px; font-weight: 500; cursor: pointer;
+          border: 1px solid transparent;
+          color: #334155; background: none; transition: all 0.15s;
+          letter-spacing: -0.1px;
+        }
+        .cc-style-tab-on {
+          border-color: rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          color: #e2e8f0;
+        }
+        .cc-reset-btn {
+          font-size: 11px; color: #334155; cursor: pointer;
+          background: none; border: none; padding: 4px 2px;
+          transition: color 0.15s;
+        }
+        .cc-reset-btn:hover { color: #64748b; }
+
+        /* Preset horizontal scroll */
+        .cc-presets {
+          display: flex;
+          flex-direction: row;
+          gap: 7px;
+          margin-bottom: 10px;
+          overflow-x: auto;
+          padding-bottom: 2px;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .cc-presets::-webkit-scrollbar { display: none; }
+        .cc-preset-card {
+          position: relative;
+          flex-shrink: 0;
+          width: 96px; height: 70px;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.07);
+          cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+          overflow: hidden;
+          transition: all 0.18s;
+          padding: 8px 6px;
+          text-align: center;
+        }
+        .cc-preset-card::before {
+          content: '';
+          position: absolute; inset: 0;
+          background: rgba(0,0,0,0.3);
+          transition: background 0.15s;
+        }
+        .cc-preset-card:hover::before { background: rgba(0,0,0,0.1); }
+        .cc-preset-card:hover { border-color: rgba(168,85,247,0.4); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+        .cc-preset-on {
+          border-color: rgba(168,85,247,0.7) !important;
+          box-shadow: 0 0 0 1px rgba(168,85,247,0.25), 0 4px 20px rgba(168,85,247,0.18) !important;
+          transform: translateY(-1px);
+        }
+        .cc-preset-check {
+          position: absolute; top: 5px; right: 6px;
+          font-size: 9px; color: #a855f7;
+          font-weight: 900; z-index: 2;
+        }
+        .cc-preset-name {
+          position: relative; z-index: 1;
+          font-size: 11px; font-weight: 800;
+          line-height: 1.25;
+          display: block;
+          word-break: break-word;
+          letter-spacing: -0.01em;
+        }
+        .cc-preset-gradient-pill {
+          position: absolute; bottom: 0; left: 0; right: 0;
+          height: 3px;
+        }
+
+        /* Global controls */
+        .cc-global-row {
+          display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        }
+        .cc-ctrl-field {
+          display: flex; align-items: center; gap: 5px;
+          font-size: 11px; color: #334155; cursor: pointer;
+          font-weight: 500;
+        }
+
+        /* Share URL */
+        .cc-share-row {
+          display: flex; align-items: center; gap: 6px;
+          margin-top: 8px;
+          padding: 7px 10px;
+          border-radius: 8px;
+          background: rgba(0,0,0,0.4);
+          border: 1px solid rgba(255,255,255,0.06);
+        }
+        .cc-share-icon { color: #334155; flex-shrink: 0; }
+        .cc-share-input {
+          flex: 1; background: transparent; border: none; outline: none;
+          font-size: 11px; color: #64748b;
+          font-family: "SF Mono", "Fira Code", monospace;
+        }
+        .cc-share-copy {
+          font-size: 11px; color: #a855f7; background: none; border: none;
+          cursor: pointer; padding: 0; transition: color 0.15s; flex-shrink: 0;
+        }
+        .cc-share-copy:hover { color: #c4b5fd; }
+
+        /* Thumbnail */
+        .cc-thumb-wrap { position: relative; margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.07); }
+        .cc-thumb-img { width: 100%; height: 88px; object-fit: cover; display: block; }
+        .cc-thumb-overlay {
+          position: absolute; inset: 0;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(0,0,0,0.55);
+          opacity: 0; transition: opacity 0.2s; cursor: pointer;
+        }
+        .cc-thumb-wrap:hover .cc-thumb-overlay { opacity: 1; }
+        .cc-thumb-btn {
+          font-size: 11px; color: white;
+          padding: 5px 14px;
+          background: rgba(124,58,237,0.8);
+          border-radius: 20px;
+          font-weight: 600;
+        }
+
+        /* ── Modals ── */
+        .cc-modal-backdrop {
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.7);
+          backdrop-filter: blur(10px);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 50;
+        }
+        .cc-modal {
+          background: #0c0c12;
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 16px;
+          padding: 24px;
+          width: 480px;
+          max-height: 80vh;
+          overflow-y: auto;
+          box-shadow: 0 40px 100px rgba(0,0,0,0.85), 0 0 0 1px rgba(168,85,247,0.08);
+        }
+        .cc-modal-wide { width: 560px; }
+        .cc-modal-header {
+          display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 4px;
+        }
+      .cc-modal-header-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+        .cc-modal-title-row { display: flex; align-items: center; gap: 8px; }
+        .cc-modal-icon {
+          width: 28px; height: 28px; border-radius: 8px;
+          background: rgba(168,85,247,0.1);
+          border: 1px solid rgba(168,85,247,0.2);
+          display: flex; align-items: center; justify-content: center;
+          color: #a855f7;
+        }
+        .cc-modal-title { font-size: 15px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; }
+        .cc-modal-close {
+          width: 28px; height: 28px; border-radius: 7px;
+          display: flex; align-items: center; justify-content: center;
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+          color: #475569; font-size: 18px; cursor: pointer;
+          transition: all 0.15s; line-height: 1;
+        }
+        .cc-modal-close:hover { color: #e2e8f0; background: rgba(255,255,255,0.09); }
+      .cc-collection-filter {
+        position: relative;
+      }
+      .cc-collection-filter-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        border: 1px solid rgba(148,163,184,0.5);
+        background: rgba(15,23,42,0.9);
+        color: #cbd5f5;
+        cursor: pointer;
+      }
+      .cc-collection-filter-btn svg {
+        color: #64748b;
+      }
+      .cc-collection-dropdown {
+        position: absolute;
+        right: 0;
+        margin-top: 6px;
+        min-width: 180px;
+        border-radius: 10px;
+        background: #020617;
+        border: 1px solid rgba(148,163,184,0.5);
+        box-shadow: 0 20px 45px rgba(0,0,0,0.85);
+        padding: 6px;
+        z-index: 60;
+      }
+      .cc-collection-item,
+      .cc-collection-new {
+        width: 100%;
+        text-align: left;
+        font-size: 12px;
+        padding: 5px 8px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: #e2e8f0;
+        cursor: pointer;
+      }
+      .cc-collection-item:hover {
+        background: rgba(148,163,184,0.15);
+      }
+      .cc-collection-item-on {
+        background: rgba(79,70,229,0.25);
+      }
+      .cc-collection-new {
+        margin-top: 4px;
+        font-weight: 500;
+        color: #a855f7;
+      }
+      .cc-collection-divider {
+        height: 1px;
+        margin: 4px 0;
+        background: rgba(15,23,42,0.9);
+      }
+      .cc-collection-loading {
+        font-size: 11px;
+        color: #64748b;
+        padding: 4px 6px;
+      }
+        .cc-modal-desc { font-size: 12px; color: #475569; line-height: 1.6; margin-bottom: 16px; }
+        .cc-modal-empty { font-size: 13px; color: #334155; text-align: center; padding: 48px 0; }
+
+        .cc-highlight-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .cc-highlight-chip {
+          padding: 5px 12px; border-radius: 7px;
+          border: 1px solid rgba(168,85,247,0.25);
+          background: rgba(168,85,247,0.08);
+          color: #a78bfa; font-size: 12px; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .cc-highlight-chip:hover { background: rgba(168,85,247,0.2); color: #c4b5fd; }
+
+        .cc-modal-footer { display: flex; justify-content: flex-end; margin-top: 20px; }
+        .cc-modal-done {
+          padding: 8px 24px; border-radius: 8px;
+          background: linear-gradient(130deg, #7c3aed, #a855f7);
+          color: white; font-size: 13px; font-weight: 600;
+          border: none; cursor: pointer;
+          box-shadow: 0 4px 18px rgba(168,85,247,0.3);
+          transition: filter 0.15s;
+        }
+        .cc-modal-done:hover { filter: brightness(1.1); }
+
+        /* Project list */
+        .cc-proj-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; max-height: 60vh; overflow-y: auto; }
+        .cc-proj-card {
+          display: flex; align-items: center; gap: 12px;
+          padding: 12px; border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.05);
+          background: rgba(255,255,255,0.015);
+          cursor: pointer; transition: all 0.15s;
+        }
+        .cc-proj-card:hover { border-color: rgba(255,255,255,0.09); background: rgba(255,255,255,0.03); }
+        .cc-proj-card-on { border-color: rgba(168,85,247,0.45) !important; background: rgba(168,85,247,0.06) !important; }
+        .cc-proj-thumb { width: 72px; height: 52px; object-fit: cover; border-radius: 7px; border: 1px solid rgba(255,255,255,0.07); flex-shrink: 0; }
+        .cc-proj-info { flex: 1; min-width: 0; }
+        .cc-proj-title { font-size: 13px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.2px; }
+        .cc-proj-meta { font-size: 11px; color: #334155; margin-top: 2px; }
+        .cc-proj-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .cc-proj-badge-current { font-size: 10px; color: #a855f7; border: 1px solid rgba(168,85,247,0.35); padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+        .cc-proj-badge-del { font-size: 10px; color: #f87171; border: 1px solid rgba(239,68,68,0.25); padding: 2px 8px; border-radius: 20px; background: rgba(239,68,68,0.06); cursor: pointer; transition: all 0.15s; }
+        .cc-proj-badge-del:hover { background: rgba(239,68,68,0.14); }
+
+        /* ── Animations ── */
+        @keyframes cc-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes cc-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(0.85); }
+        }
+      `}</style>
     </main>
   );
 }
 
-// Profile Menu Component
+// ── Profile Menu ──────────────────────────────────────────────────────────────
 type ProfileMenuProps = {
   user: AuthUser;
   open: boolean;
@@ -1505,56 +2113,73 @@ type ProfileMenuProps = {
 };
 
 function ProfileMenu({ user, open, onToggle, onOpenProjects, onLogout }: ProfileMenuProps) {
-  const initials = user.name
-    .split(" ")
-    .map((p) => p[0]?.toUpperCase())
-    .slice(0, 2)
-    .join("") || "U";
-
+  const initials = user.name.split(" ").map((p) => p[0]?.toUpperCase()).slice(0, 2).join("") || "U";
   return (
     <div className="relative">
       <button
         onClick={onToggle}
-        className="w-9 h-9 rounded-full bg-purple-600 text-sm font-semibold text-white flex items-center justify-center hover:bg-purple-500 transition-colors"
+        className="cc-avatar"
+        style={{
+          background: "radial-gradient(circle at 30% 30%, #c084fc, #6366f1)",
+          boxShadow: "0 0 0 2px rgba(168,85,247,0.25), 0 4px 16px rgba(168,85,247,0.25)",
+        }}
       >
         {initials}
       </button>
-
       {open && (
         <>
-          {/* Backdrop to close menu */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={onToggle}
-          />
-          {/* Menu dropdown */}
-          <div className="absolute right-0 mt-2 w-56 rounded-lg border border-gray-700 bg-black shadow-xl z-50">
-            <div className="px-3 py-2 border-b border-gray-800">
-              <div className="font-semibold text-white truncate">{user.name}</div>
-              <div className="text-xs text-gray-400 truncate">{user.email}</div>
+          <div className="fixed inset-0 z-40" onClick={onToggle} />
+          <div className="cc-profile-menu">
+            <div className="cc-profile-header">
+              <div className="cc-profile-name">{user.name}</div>
+              <div className="cc-profile-email">{user.email}</div>
             </div>
-
-            <button
-              onClick={() => {
-                onOpenProjects();
-              }}
-              className="w-full text-left px-3 py-2 hover:bg-gray-900 text-gray-200 flex items-center justify-between text-sm"
-            >
+            <button onClick={onOpenProjects} className="cc-profile-item">
               <span>Your projects</span>
-              <span className="text-xs text-gray-500">⌘P</span>
+              <span className="cc-profile-shortcut">⌘P</span>
             </button>
-
-            <button
-              onClick={() => {
-                onLogout();
-              }}
-              className="w-full text-left px-3 py-2 hover:bg-gray-900 text-red-400 text-sm"
-            >
+            <button onClick={onLogout} className="cc-profile-item cc-profile-logout">
               Logout
             </button>
           </div>
         </>
       )}
+      <style>{`
+        .cc-avatar {
+          width: 34px; height: 34px; border-radius: 50%;
+          font-size: 12px; font-weight: 800; color: white;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer; border: none; transition: all 0.2s; letter-spacing: -0.5px;
+        }
+        .cc-avatar:hover { transform: scale(1.06); }
+        .cc-profile-menu {
+          position: absolute; right: 0; top: calc(100% + 8px);
+          width: 210px; border-radius: 12px;
+          background: #0c0c12;
+          border: 1px solid rgba(255,255,255,0.07);
+          box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.06);
+          overflow: hidden;
+          z-index: 50;
+        }
+        .cc-profile-header {
+          padding: 14px 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.055);
+        }
+        .cc-profile-name { font-size: 13px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.2px; }
+        .cc-profile-email { font-size: 11px; color: #334155; margin-top: 2px; }
+        .cc-profile-item {
+          display: flex; align-items: center; justify-content: space-between;
+          width: 100%; text-align: left;
+          padding: 10px 16px;
+          font-size: 13px; color: #94a3b8;
+          background: none; border: none; cursor: pointer;
+          transition: background 0.15s;
+        }
+        .cc-profile-item:hover { background: rgba(255,255,255,0.04); }
+        .cc-profile-shortcut { font-size: 10px; color: #2d3748; }
+        .cc-profile-logout { color: #f87171; }
+        .cc-profile-logout:hover { background: rgba(239,68,68,0.06) !important; }
+      `}</style>
     </div>
   );
 }

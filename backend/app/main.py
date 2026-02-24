@@ -7,6 +7,7 @@ from app.api.routes_render import router as render_router
 from app.api.routes_projects import router as projects_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_upload import router as upload_router
+from app.api.routes_collections import router as collections_router
 from app.database.connection import connect_to_mongo, close_mongo_connection
 
 
@@ -34,6 +35,7 @@ app.include_router(render_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
+app.include_router(collections_router, prefix="/api")
 
 
 @app.get("/health")
