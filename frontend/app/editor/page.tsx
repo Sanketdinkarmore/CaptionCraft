@@ -575,8 +575,8 @@ export default function EditorPage() {
             <div className="cc-export-divider" />
             <select value={exportResolution} onChange={(e) => setExportResolution(e.target.value as any)} className="cc-export-select">
               <option value="original">Original</option>
-              <option value="720p">720p</option>
-              <option value="1080p">1080p</option>
+              {/* <option value="720p">720p</option>
+              <option value="1080p">1080p</option> */}
             </select>
           </div>
 
