@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signup, setToken, type AuthResponse } from "@/lib/authClient";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -58,12 +59,10 @@ export default function SignupPage() {
             className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white"
             required
           />
-          <input
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            type="password"
-            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white"
             required
           />
           <button

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { resetPassword, setToken } from "@/lib/authClient";
+import PasswordInput from "@/components/PasswordInput";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -58,21 +59,17 @@ export default function ResetPasswordPage() {
         {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
 
         <form onSubmit={onSubmit} className="mt-5 space-y-3">
-          <input
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="New password"
-            type="password"
-            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white"
             required
             disabled={tokenMissing}
           />
-          <input
+          <PasswordInput
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             placeholder="Confirm password"
-            type="password"
-            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white"
             required
             disabled={tokenMissing}
           />
