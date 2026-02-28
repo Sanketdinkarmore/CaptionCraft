@@ -76,6 +76,58 @@ function segmentsToSrt(segments: Segment[]) {
 
 function clamp01(v: number) { return Math.max(0, Math.min(1, v)); }
 
+type MusicTrack = {
+  id: string;
+  name: string;
+  artist?: string;
+  url: string;
+  durationLabel?: string;
+  mood?: string;
+};
+
+const MUSIC_TRACKS: MusicTrack[] = [
+  {
+    id: "bensound-hearty",
+    name: "Bensound - Hearty",
+    artist: "Instrumental",
+    url: "/music/bensound-hearty.mp3",
+    durationLabel: "2:31",
+    mood: "Warm",
+  },
+  {
+    id: "organic-flow",
+    name: "Organic Flow",
+    artist: "Aberrant Realities",
+    url: "/music/aberrantrealities-organic-flow-1015-remastered-485950.mp3",
+    durationLabel: "3:45",
+    mood: "Organic",
+  },
+  {
+    id:"beanie",
+    name: "Beanie",
+    artist: "Instrumental",
+    url: "/music/beanie.mp3",
+    durationLabel: "0:11",
+    mood: "Warm",
+  },
+  { id:"without-me",
+    name: "Without Me",
+    artist: "Eminem",
+    url: "/music/without_me_eminem_inst.mp3",
+    durationLabel: "0:30",
+    mood: "Punchy",
+  },
+  {
+    id:"blade_runner",
+    name: "Blade Runner",
+    artist: "Instrumental",
+    url: "/music/blade_runner_2049.mp3",
+    durationLabel: "0:30",
+    mood: "Warm",
+  }
+
+];
+
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const UploadIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -160,6 +212,10 @@ export default function EditorPage() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
+  const [selectedMusicId, setSelectedMusicId] = useState<string | null>(null);
+  const [previewingMusicId, setPreviewingMusicId] = useState<string | null>(null);
+  const [musicVolume, setMusicVolume] = useState<number>(30);
+
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -219,6 +275,10 @@ export default function EditorPage() {
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const selectedMusic = selectedMusicId ? MUSIC_TRACKS.find((t) => t.id === selectedMusicId) ?? null : null;
 
   function applyGlobalPreset(presetName: string) {
     const preset = presetStyles[presetName as keyof typeof presetStyles];
@@ -323,14 +383,83 @@ export default function EditorPage() {
     return () => video.removeEventListener("timeupdate", onTimeUpdate);
   }, [videoUrl]);
 
+  // Keep background music in sync with the main video for preview
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = musicAudioRef.current;
+    if (!video || !audio) return;
+
+    const syncTime = () => {
+      if (!isNaN(video.currentTime)) {
+        audio.currentTime = video.currentTime;
+      }
+    };
+
+    const handlePlay = () => {
+      if (!selectedMusic) return;
+      if (!audio.src || !audio.src.includes(selectedMusic.url)) {
+        audio.src = selectedMusic.url;
+      }
+      syncTime();
+      audio.volume = musicVolume / 100;
+      audio.loop = true;
+      audio.play().catch(() => {});
+    };
+
+    const handlePause = () => {
+      audio.pause();
+    };
+
+    const handleSeeking = () => {
+      syncTime();
+    };
+
+    const handleEnded = () => {
+      audio.pause();
+    };
+
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("seeking", handleSeeking);
+    video.addEventListener("ended", handleEnded);
+
+    return () => {
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("seeking", handleSeeking);
+      video.removeEventListener("ended", handleEnded);
+    };
+  }, [selectedMusic, musicVolume]);
+
+  // Apply volume changes to both background and preview audio
+  useEffect(() => {
+    if (musicAudioRef.current) {
+      musicAudioRef.current.volume = musicVolume / 100;
+    }
+    if (previewAudioRef.current) {
+      previewAudioRef.current.volume = musicVolume / 100;
+    }
+  }, [musicVolume]);
+
   const activeSegment = segments.find((s) => currentTime >= s.start && currentTime < s.end);
 
   async function handleRenderVideo() {
     if (!videoUrl || !segments.length) return;
+    const musicUrlForRender =
+      selectedMusic && typeof window !== "undefined"
+        ? `${window.location.origin}${selectedMusic.url}`
+        : undefined;
     setRendering(true);
     setError(null);
     try {
-      const { file_name, output_resolution } = await renderVideo({ segments, globalStyle, videoUrl: videoUrl!, resolution: exportResolution });
+      const { file_name, output_resolution } = await renderVideo({
+        segments,
+        globalStyle,
+        videoUrl: videoUrl!,
+        resolution: exportResolution,
+        musicUrl: musicUrlForRender,
+        musicVolume: musicVolume / 100,
+      });
       if (output_resolution) alert(`Video rendered successfully!\nResolution: ${output_resolution}\nSelected: ${exportResolution}`);
       await downloadRenderedVideo(file_name);
     } catch (err: any) {
@@ -617,6 +746,9 @@ export default function EditorPage() {
                     <span className="cc-status-muted">Export uses original</span>
                   </div>
                   <video ref={videoRef} src={videoUrl} controls className="cc-phone-video" />
+                  {/* Hidden audio elements for music preview */}
+                  <audio ref={musicAudioRef} className="hidden" />
+                  <audio ref={previewAudioRef} className="hidden" />
                   {activeSegment && (
                     <div
                       {...makePositionHandlers(segments.indexOf(activeSegment))}
@@ -910,13 +1042,144 @@ export default function EditorPage() {
           )}
 
           {activeTab === "music" && (
-            <div className="cc-state-center">
-              <div className="cc-empty-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                </svg>
+            <div className="cc-music-panel">
+              <div className="cc-music-header">
+                <div className="cc-music-current">
+                  <div className="cc-music-pill-label">Music</div>
+                  <div className="cc-music-current-main">
+                    <span className="cc-music-current-label">Current</span>
+                    <span className="cc-music-current-name">
+                      {selectedMusic ? selectedMusic.name : "No music selected"}
+                    </span>
+                  </div>
+                </div>
+                <div className="cc-music-volume">
+                  <span className="cc-music-volume-label">Music volume</span>
+                  <div className="cc-music-volume-slider">
+                    <span className="cc-music-volume-min">0%</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={musicVolume}
+                      onChange={(e) => setMusicVolume(Number(e.target.value))}
+                    />
+                    <span className="cc-music-volume-max">100%</span>
+                    <span className="cc-music-volume-value">{musicVolume}%</span>
+                  </div>
+                </div>
               </div>
-              <p className="cc-empty-title">Music coming soon</p>
+
+              <div className="cc-music-toolbar">
+                <div className="cc-music-toolbar-left">
+                  <span className="cc-music-toolbar-label">Library</span>
+                  <span className="cc-music-count">{MUSIC_TRACKS.length} tracks</span>
+                </div>
+                <input
+                  type="text"
+                  className="cc-music-search"
+                  placeholder="Search tracks…"
+                  onChange={(e) => {
+                    const q = e.target.value.toLowerCase();
+                    const audio = previewAudioRef.current;
+                    if (audio && previewingMusicId && audio.paused) {
+                      setPreviewingMusicId(null);
+                    }
+                    // Filter is applied inline below via includes()
+                    const root = document.querySelector(".cc-music-list");
+                    if (!root) return;
+                    Array.from(root.children).forEach((child) => {
+                      if (!(child instanceof HTMLElement)) return;
+                      const text = child.dataset?.trackName?.toLowerCase() ?? "";
+                      child.style.display = !q || text.includes(q) ? "" : "none";
+                    });
+                  }}
+                />
+              </div>
+
+              <div className="cc-music-list">
+                {MUSIC_TRACKS.map((track) => {
+                  const isSelected = selectedMusicId === track.id;
+                  const isPreviewing = previewingMusicId === track.id;
+                  return (
+                    <div
+                      key={track.id}
+                      className={`cc-music-row ${isSelected ? "cc-music-row-on" : ""} ${
+                        isPreviewing ? "cc-music-row-previewing" : ""
+                      }`}
+                      data-track-name={`${track.name} ${track.artist ?? ""} ${track.mood ?? ""}`}
+                    >
+                      <div className="cc-music-row-left">
+                        <div className="cc-music-badge">
+                          {isPreviewing ? (
+                            <span className="cc-music-badge-dot cc-music-badge-dot-on" />
+                          ) : (
+                            <span className="cc-music-badge-dot" />
+                          )}
+                        </div>
+                        <div className="cc-music-meta">
+                          <div className="cc-music-title-row">
+                            <span className="cc-music-title">{track.name}</span>
+                            {track.durationLabel && (
+                              <span className="cc-music-duration">{track.durationLabel}</span>
+                            )}
+                          </div>
+                          <div className="cc-music-sub">
+                            {track.artist && <span>{track.artist}</span>}
+                            {track.mood && <span className="cc-music-dot">·</span>}
+                            {track.mood && <span>{track.mood}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="cc-music-actions">
+                        <button
+                          type="button"
+                          className={`cc-music-pill-btn ${isPreviewing ? "cc-music-pill-btn-on" : ""}`}
+                          onClick={() => {
+                            const audio = previewAudioRef.current;
+                            if (!audio) return;
+                            if (isPreviewing && !audio.paused) {
+                              audio.pause();
+                              audio.currentTime = 0;
+                              setPreviewingMusicId(null);
+                              return;
+                            }
+                            audio.src = track.url;
+                            audio.currentTime = 0;
+                            audio.volume = musicVolume / 100;
+                            audio.loop = true;
+                            audio
+                              .play()
+                              .then(() => setPreviewingMusicId(track.id))
+                              .catch(() => setPreviewingMusicId(null));
+                          }}
+                        >
+                          {isPreviewing ? "Stop" : "Preview"}
+                        </button>
+                        <button
+                          type="button"
+                          className={`cc-music-pill-btn ${
+                            isSelected ? "cc-music-pill-danger" : "cc-music-pill-primary"
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedMusicId(null);
+                              if (musicAudioRef.current) {
+                                musicAudioRef.current.pause();
+                                musicAudioRef.current.currentTime = 0;
+                              }
+                            } else {
+                              setSelectedMusicId(track.id);
+                            }
+                          }}
+                        >
+                          {isSelected ? "Unselect" : "Select"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1618,6 +1881,277 @@ export default function EditorPage() {
         .cc-subs-list::-webkit-scrollbar { width: 4px; }
         .cc-subs-list::-webkit-scrollbar-track { background: transparent; }
         .cc-subs-list::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.2); border-radius: 4px; }
+
+        /* Music panel */
+        .cc-music-panel {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+        }
+        .cc-music-header {
+          position: sticky;
+          top: 0;
+          z-index: 5;
+          padding: 10px 16px 8px;
+          background: linear-gradient(to bottom, rgba(8,8,13,0.98), rgba(8,8,13,0.9));
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .cc-music-current {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+        .cc-music-pill-label {
+          align-self: flex-start;
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+          color: #4b5563;
+          padding: 2px 7px;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.25);
+          background: radial-gradient(circle at 0 0, rgba(168,85,247,0.25), transparent 55%);
+        }
+        .cc-music-current-main {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .cc-music-current-label {
+          font-size: 11px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+        }
+        .cc-music-current-name {
+          font-size: 13px;
+          font-weight: 600;
+          color: #e2e8f0;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          overflow: hidden;
+          max-width: 210px;
+        }
+        .cc-music-volume {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+        .cc-music-volume-label {
+          font-size: 11px;
+          color: #64748b;
+        }
+        .cc-music-volume-slider {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cc-music-volume-slider input[type="range"] {
+          flex: 1;
+          accent-color: #a855f7;
+        }
+        .cc-music-volume-min,
+        .cc-music-volume-max {
+          font-size: 10px;
+          color: #4b5563;
+        }
+        .cc-music-volume-value {
+          font-size: 11px;
+          color: #c4b5fd;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .cc-music-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 6px 16px 6px;
+          border-bottom: 1px solid rgba(255,255,255,0.03);
+          gap: 8px;
+          background: radial-gradient(circle at 0 0, rgba(15,23,42,0.9), rgba(15,23,42,0.4));
+        }
+        .cc-music-toolbar-left {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cc-music-toolbar-label {
+          font-size: 11px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+        }
+        .cc-music-count {
+          font-size: 11px;
+          color: #4b5563;
+        }
+        .cc-music-search {
+          flex: 1;
+          min-width: 0;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.35);
+          background: radial-gradient(circle at 0 0, rgba(15,23,42,0.9), rgba(15,23,42,0.95));
+          padding: 6px 11px;
+          font-size: 11px;
+          color: #cbd5f5;
+        }
+        .cc-music-search::placeholder {
+          color: #4b5563;
+        }
+
+        .cc-music-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 8px 10px 12px;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(148,163,184,0.35) transparent;
+        }
+        .cc-music-list::-webkit-scrollbar { width: 4px; }
+        .cc-music-list::-webkit-scrollbar-track { background: transparent; }
+        .cc-music-list::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(129,140,248,0.7), rgba(168,85,247,0.4));
+          border-radius: 999px;
+        }
+
+        .cc-music-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 7px 9px;
+          border-radius: 9px;
+          border: 1px solid rgba(30,41,59,0.9);
+          background: radial-gradient(circle at 0 0, rgba(15,23,42,0.98), rgba(15,23,42,0.92));
+          margin-bottom: 5px;
+          transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.12s;
+        }
+        .cc-music-row:hover {
+          border-color: rgba(148,163,184,0.5);
+          box-shadow: 0 8px 18px rgba(15,23,42,0.8);
+          transform: translateY(-1px);
+        }
+        .cc-music-row-on {
+          border-color: rgba(168,85,247,0.8);
+          background: radial-gradient(circle at 0 0, rgba(76,29,149,0.9), rgba(15,23,42,0.95));
+          box-shadow: 0 0 0 1px rgba(168,85,247,0.5), 0 10px 26px rgba(76,29,149,0.8);
+        }
+        .cc-music-row-previewing {
+          border-color: rgba(56,189,248,0.8);
+          box-shadow: 0 0 0 1px rgba(56,189,248,0.6), 0 10px 26px rgba(8,47,73,0.9);
+        }
+
+        .cc-music-row-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 0;
+        }
+        .cc-music-badge {
+          width: 22px;
+          height: 22px;
+          border-radius: 999px;
+          background: radial-gradient(circle at 30% 20%, rgba(148,163,184,0.5), rgba(15,23,42,0.95));
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .cc-music-badge-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: rgba(148,163,184,0.7);
+        }
+        .cc-music-badge-dot-on {
+          background: #22c55e;
+          box-shadow: 0 0 12px rgba(34,197,94,0.85);
+        }
+        .cc-music-meta {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          min-width: 0;
+        }
+        .cc-music-title-row {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 6px;
+        }
+        .cc-music-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #e5e7eb;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .cc-music-duration {
+          font-size: 11px;
+          color: #6b7280;
+          font-variant-numeric: tabular-nums;
+        }
+        .cc-music-sub {
+          font-size: 11px;
+          color: #6b7280;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .cc-music-dot {
+          color: #4b5563;
+        }
+
+        .cc-music-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cc-music-pill-btn {
+          padding: 5px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(148,163,184,0.5);
+          background: rgba(15,23,42,0.9);
+          color: #e5e7eb;
+          font-size: 11px;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.15s;
+        }
+        .cc-music-pill-btn:hover {
+          border-color: rgba(148,163,184,0.8);
+          background: rgba(30,64,175,0.7);
+        }
+        .cc-music-pill-btn-on {
+          border-color: rgba(56,189,248,0.8);
+          background: radial-gradient(circle at 0 0, rgba(8,47,73,0.95), rgba(15,23,42,0.98));
+          color: #e0f2fe;
+        }
+        .cc-music-pill-primary {
+          border-color: rgba(168,85,247,0.8);
+          background: radial-gradient(circle at 0 0, rgba(88,28,135,0.95), rgba(15,23,42,0.98));
+          color: #ede9fe;
+        }
+        .cc-music-pill-primary:hover {
+          box-shadow: 0 0 0 1px rgba(168,85,247,0.7);
+        }
+        .cc-music-pill-danger {
+          border-color: rgba(248,113,113,0.9);
+          background: radial-gradient(circle at 0 0, rgba(127,29,29,0.95), rgba(15,23,42,0.98));
+          color: #fee2e2;
+        }
+        .cc-music-pill-danger:hover {
+          box-shadow: 0 0 0 1px rgba(248,113,113,0.8);
+        }
 
         /* States */
         .cc-state-center {

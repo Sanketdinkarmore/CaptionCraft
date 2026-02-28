@@ -58,13 +58,15 @@ export async function uploadAndTranscribe(file: File) {
   return (await res.json()) as { segments: RawSegment[] };
 }
 
-// UPDATED: Now accepts {segments, globalStyle, videoUrl, resolution}
+// UPDATED: Now accepts {segments, globalStyle, videoUrl, resolution, musicUrl?, musicVolume?}
 export async function renderVideo(
   renderData: { 
     segments: Segment[]; 
     globalStyle: GlobalStyle; 
     videoUrl: string;
     resolution?: "original" | "720p" | "1080p";
+    musicUrl?: string;
+    musicVolume?: number; // 0–1
   }
 ): Promise<{ file_name: string; thumbnail_path?: string; output_resolution?: string }> {
   const formData = new FormData();
@@ -73,6 +75,11 @@ export async function renderVideo(
   formData.append("segments", JSON.stringify(renderData.segments));
   formData.append("globalStyle", JSON.stringify(renderData.globalStyle));
   formData.append("resolution", renderData.resolution || "original");
+
+  if (renderData.musicUrl) {
+    formData.append("music_url", renderData.musicUrl);
+    formData.append("music_volume", String(renderData.musicVolume ?? 0.3));
+  }
 
   const res = await fetch(`${API_BASE}/render`, {
     method: "POST",

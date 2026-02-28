@@ -8,6 +8,7 @@ from pathlib import Path
 import uuid
 from tempfile import gettempdir
 import os
+import requests
 
 try:
     from fontTools.ttLib import TTFont
@@ -230,6 +231,8 @@ async def render_video(
     segments: str = Form(...),
     globalStyle: str = Form(""),
     resolution: str = Form("original"),  # "original", "720p", "1080p"
+    music_url: str | None = Form(None),
+    music_volume: float = Form(0.3),
 ):
     # Log the resolution parameter for debugging
     print(f"[RENDER] Resolution requested: {resolution}")
@@ -246,6 +249,7 @@ async def render_video(
     v_in = tmp / f"in_{session_id}.mp4"
     v_out = tmp / f"out_{session_id}.mp4"
     ass_file = tmp / f"subs_{session_id}.ass"
+    music_path = None
     
     # Create a temporary fonts directory to avoid Windows path issues with colons
     tmp_fonts_dir = tmp / f"fonts_{session_id}"
@@ -255,6 +259,20 @@ async def render_video(
         f.write(await video.read())
 
     ass_file.write_text(build_ass(seg_models, g_style), encoding="utf-8")
+
+    # If a music URL is provided, download it to a temporary file for FFmpeg
+    if music_url:
+        try:
+            music_path = tmp / f"music_{session_id}.mp3"
+            resp = requests.get(music_url, stream=True, timeout=30)
+            resp.raise_for_status()
+            with music_path.open("wb") as mf:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        mf.write(chunk)
+        except Exception as e:
+            print(f"[RENDER] Warning: Failed to download music from {music_url}: {e}")
+            music_path = None
 
     # libass (used by FFmpeg subtitles filter) needs fontsdir on Windows - it does NOT
     # use fontconfig there. The fontsdir option explicitly tells libass where to find fonts.
@@ -308,12 +326,39 @@ async def render_video(
     
     # Build FFmpeg command
     # The scale filter already handles resolution, so we don't need -s flag
-    cmd = [
-        "ffmpeg", "-y", "-i", v_in_filename,
-        "-vf", subtitles_filter,
-        "-c:v", "libx264", "-preset", "medium", "-crf", "23",
-        "-c:a", "copy", v_out_filename
-    ]
+    if music_path and music_path.exists():
+        # Use a second input for music, loop it, and mix with original audio
+        music_filename = music_path.name
+        # Ensure volume is within 0–1
+        music_volume_clamped = max(0.0, min(1.0, float(music_volume)))
+        audio_filter = (
+            f"[0:a]volume=1.0[a0];"
+            f"[1:a]volume={music_volume_clamped}[a1];"
+            f"[a0][a1]amix=inputs=2:duration=shortest[aout]"
+        )
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", v_in_filename,
+            "-stream_loop", "-1", "-i", music_filename,
+            "-vf", subtitles_filter,
+            "-filter_complex", audio_filter,
+            "-map", "0:v",
+            "-map", "[aout]",
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "23",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            v_out_filename,
+        ]
+    else:
+        cmd = [
+            "ffmpeg", "-y", "-i", v_in_filename,
+            "-vf", subtitles_filter,
+            "-c:v", "libx264", "-preset", "medium", "-crf", "23",
+            "-c:a", "copy", v_out_filename
+        ]
 
     thumbnail_path = None
     try:
@@ -373,6 +418,8 @@ async def render_video(
             os.remove(ass_file)
         if v_in.exists(): 
             os.remove(v_in)
+        if music_path and music_path.exists():
+            os.remove(music_path)
         # Cleanup temporary fonts directory
         if tmp_fonts_dir.exists():
             import shutil
