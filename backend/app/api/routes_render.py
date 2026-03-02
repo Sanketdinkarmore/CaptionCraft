@@ -155,9 +155,20 @@ def hex_to_ass(color: str) -> str:
 def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
     # Use the font mapping function to get the correct font name
     font_family = get_font_name(global_style.get("fontFamily", "Arial"))
-    font_size = int(global_style.get("fontSize", 48))
+    
+    # Apply 1.2x font size multiplier for render
+    # This makes rendered text 20% larger than preview
+    frontend_font_size = global_style.get("fontSize", 36)
+    font_size = int(frontend_font_size * 2.0)
+    
     primary_color = hex_to_ass(global_style.get("color", "#FFFFFF"))
     
+    # Evenflow-style ASS subtitle format:
+    # - Bold text (-1 = super bold)
+    # - Medium black outline (2px) to avoid heavy shadow look
+    # - NO shadow (0)
+    # - NO background box (BackColour transparent)
+    # - BorderStyle 1 (outline and drop shadow, but shadow=0 so just outline)
     header = f"""[Script Info]
 Title: Generated Subtitles
 ScriptType: v4.00+
@@ -166,9 +177,13 @@ PlayResY: {PLAYRES_Y}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,1,1.8,2,10,10,60,1
+Style: Default,{font_family},{font_size},{primary_color},&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,10,10,60,1
 """
-    # Note: Shadow set to 1.5 in global style for better readability.
+    # Key changes from original:
+    # - Bold: 0 → -1 (super bold, like Evenflow)
+    # - Outline: 1 → 2 (medium black outline so shadow looks lighter than before)
+    # - Shadow: 1.8 → 0 (no drop shadow, just clean outline)
+    # - BackColour: &H80000000 → &H00000000 (fully transparent, no background box)
     
     header += """
 [Events]
@@ -183,40 +198,46 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         px = int(seg.position.x * PLAYRES_X if seg.position and seg.position.x is not None else 0.5 * PLAYRES_X)
         py = int(seg.position.y * PLAYRES_Y if seg.position and seg.position.y is not None else 0.9 * PLAYRES_Y)
 
-        # Apply global position and a soft blur (\be1) to the shadow for a cleaner look
-        line_text = f"{{\\pos({px},{py})\\be1}}"
+        # Evenflow style: clean positioning, no blur effect
+        line_text = f"{{\\pos({px},{py})}}"
 
         for span in seg.content:
             tags = []
             
-            # 1. Base Styling
+            # 1. Text Color
             current_color = span.color or global_style.get("color")
             if current_color:
                 tags.append(f"\\c{hex_to_ass(current_color)}")
             
-            # Font family override for individual spans (using \fn tag)
+            # 2. Font family override
             if span.fontFamily:
                 span_font_name = get_font_name(span.fontFamily)
                 tags.append(f"\\fn{span_font_name}")
             
+            # 3. Font size override
             if span.fontSize:
-                tags.append(f"\\fs{int(span.fontSize)}")
+                # Apply same 1.2x multiplier to span font sizes
+                tags.append(f"\\fs{int(span.fontSize * 2.0)}")
 
-            # 2. Glow Logic (The "Box" around styled words)
+            # 4. OUTLINE STYLE (Evenflow approach)
+            # For styled words with background, use the background color as outline
             if span.background:
-                glow_color = hex_to_ass(span.background)
-                tags.append(f"\\3c{glow_color}") 
-                tags.append("\\bord4")  # Thick border for glow effect
+                outline_color = hex_to_ass(span.background)
+                tags.append(f"\\3c{outline_color}")  # Outline color
+                tags.append("\\bord3")  # Slightly thicker outline for styled words, but lighter than before
             else:
-                # RESET to thin black outline for normal words
-                tags.append("\\3c&H000000&")
-                tags.append("\\bord2")
+                # Default: medium black outline for ALL words (Evenflow style, less "shadowy")
+                tags.append("\\3c&H000000&")  # Black outline
+                tags.append("\\bord2")  # Medium outline to reduce heavy shadow feel
 
-            # 3. Readability Shadow (Forces a small shadow even on styled words)
-            tags.append("\\shad1.5") 
+            # 5. NO SHADOW (clean Evenflow look)
+            tags.append("\\shad0")
 
-            # 4. Font Weight & Underline
-            tags.append(f"\\b{1 if span.fontWeight == 'bold' else 0}")
+            # 6. Bold (make styled words even bolder if needed)
+            is_bold = span.fontWeight == "bold" or global_style.get("fontWeight") == "bold"
+            tags.append(f"\\b{1 if is_bold else -1}")  # -1 is already bold from style, 1 is extra bold
+            
+            # 7. Underline
             tags.append(f"\\u{1 if span.underline else 0}")
 
             line_text += "{" + "".join(tags) + "}" + span.text
@@ -319,6 +340,7 @@ async def render_video(
     resolved_font = get_font_name(g_style.get("fontFamily", "Arial"))
     print(f"[RENDER] Resolution: {resolution}")
     print(f"[RENDER] Font requested: {g_style.get('fontFamily', 'Arial')} -> ASS Fontname: {resolved_font}")
+    print(f"[RENDER] Frontend font size: {g_style.get('fontSize', 36)} -> ASS font size: {int(g_style.get('fontSize', 36) * 2.0)} (1.2x larger)")
     print(f"[RENDER] FONTS_DIR exists: {FONTS_DIR.exists()}, fonts copied: {list(ass_file_dir.glob('*.ttf'))}")
     print(f"[RENDER] FFmpeg filter: {subtitles_filter}")
     print(f"[RENDER] Working directory: {tmp}")

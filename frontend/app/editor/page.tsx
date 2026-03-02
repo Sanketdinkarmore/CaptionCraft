@@ -247,31 +247,32 @@ export default function EditorPage() {
   const [globalStyle, setGlobalStyle] = useState<{
     fontSize: number; color: string; background: string; fontFamily: string; preset: string;
   }>({
-    fontSize: 36, color: "#ffffff", background: "rgba(0, 0, 0, 0.6)",
+    fontSize: 28, color: "#ffffff", background: "transparent",
     fontFamily: "Inter, system-ui, sans-serif", preset: "Classic",
   });
 
   const presetStyles = {
-    "Cinematic":       { fontSize: 42, color: "#FFFFFF", background: "rgba(0,0,0,0.85)",             fontFamily: "Montserrat, system-ui, sans-serif" },
-    "YouTube Bold":    { fontSize: 60, color: "#FFFFFF", background: "#FF0000",                      fontFamily: "Poppins, system-ui, sans-serif" },
-    "Reels Clean":     { fontSize: 52, color: "#FFFFFF", background: "rgba(0,0,0,0.55)",             fontFamily: "Inter, system-ui, sans-serif" },
-    "Podcast Minimal": { fontSize: 34, color: "#E5E5E5", background: "rgba(20,20,20,0.7)",           fontFamily: "Roboto, system-ui, sans-serif" },
-    "Hinglish Punch":  { fontSize: 58, color: "#00FF99", background: "rgba(0,0,0,0.85)",             fontFamily: "Poppins, system-ui, sans-serif" },
-    "Neon Glow Pink":  { fontSize: 72, color: "#FF4DFF", background: "rgba(0,0,0,0.9)",              fontFamily: "Orbitron, system-ui, sans-serif" },
-    "Neon Green":      { fontSize: 68, color: "#39FF14", background: "rgba(0,0,0,0.85)",             fontFamily: "Impact, system-ui, sans-serif" },
-    "Soft Pastel":     { fontSize: 44, color: "#2C2C2C", background: "rgba(255,200,221,0.9)",        fontFamily: "Nunito, system-ui, sans-serif" },
-    "Dark Mode Pro":   { fontSize: 40, color: "#F1F1F1", background: "rgba(15,15,15,0.9)",           fontFamily: "Inter, system-ui, sans-serif" },
-    "Bold Yellow":     { fontSize: 62, color: "#000000", background: "#FFD700",                      fontFamily: "Poppins, system-ui, sans-serif" },
-    "Instagram Story": { fontSize: 56, color: "#FFFFFF", background: "linear-gradient(90deg,#833AB4,#FD1D1D,#FCB045)", fontFamily: "Poppins, system-ui, sans-serif" },
-    "Retro VHS":       { fontSize: 50, color: "#00FFD1", background: "rgba(0,0,0,0.75)",             fontFamily: "Courier Prime, monospace" },
-    "Luxury Serif":    { fontSize: 38, color: "#F5F5F5", background: "rgba(0,0,0,0.6)",              fontFamily: "Playfair Display, serif" },
-    "Gaming HUD":      { fontSize: 48, color: "#00E5FF", background: "rgba(10,10,10,0.85)",          fontFamily: "Orbitron, system-ui, sans-serif" },
-    "Minimal White":   { fontSize: 32, color: "#000000", background: "rgba(255,255,255,0.85)",       fontFamily: "Inter, system-ui, sans-serif" },
-  };
+   "Cinematic":       { fontSize: 32, color: "#FFFFFF", background: "transparent", fontFamily: "Montserrat, system-ui, sans-serif" },
+  "YouTube Bold":    { fontSize: 48, color: "#FFFFFF", background: "transparent", fontFamily: "Poppins, system-ui, sans-serif" },
+  "Reels Clean":     { fontSize: 40, color: "#FFFFFF", background: "transparent", fontFamily: "Inter, system-ui, sans-serif" },
+  "Podcast Minimal": { fontSize: 28, color: "#E5E5E5", background: "transparent", fontFamily: "Roboto, system-ui, sans-serif" },
+  "Hinglish Punch":  { fontSize: 45, color: "#00FF99", background: "transparent", fontFamily: "Poppins, system-ui, sans-serif" },
+  "Neon Glow Pink":  { fontSize: 55, color: "#FF4DFF", background: "transparent", fontFamily: "Orbitron, system-ui, sans-serif" },
+  "Neon Green":      { fontSize: 52, color: "#39FF14", background: "transparent", fontFamily: "Impact, system-ui, sans-serif" },
+  "Soft Pastel":     { fontSize: 35, color: "#FF1493", background: "transparent", fontFamily: "Nunito, system-ui, sans-serif" },
+  "Dark Mode Pro":   { fontSize: 32, color: "#F1F1F1", background: "transparent", fontFamily: "Inter, system-ui, sans-serif" },
+  "Bold Yellow":     { fontSize: 48, color: "#FFD700", background: "transparent", fontFamily: "Poppins, system-ui, sans-serif" },
+  "Instagram Story": { fontSize: 45, color: "#FFFFFF", background: "transparent", fontFamily: "Poppins, system-ui, sans-serif" },
+  "Retro VHS":       { fontSize: 40, color: "#00FFD1", background: "transparent", fontFamily: "Courier Prime, monospace" },
+  "Luxury Serif":    { fontSize: 30, color: "#F5F5F5", background: "transparent", fontFamily: "Playfair Display, serif" },
+  "Gaming HUD":      { fontSize: 38, color: "#00E5FF", background: "transparent", fontFamily: "Orbitron, system-ui, sans-serif" },
+  "Minimal White":   { fontSize: 26, color: "#FFFFFF", background: "transparent", fontFamily: "Inter, system-ui, sans-serif" },
+};
 
   const [selectedWord, setSelectedWord] = useState<{ segmentIndex: number | null; wordIndex: number | null }>({ segmentIndex: null, wordIndex: null });
+ 
   const [wordStyleDraft, setWordStyleDraft] = useState<{ color: string; fontFamily: string; bold: boolean; fontSize: number; background: string }>({
-    color: "#ffd54f", fontFamily: "Inter, system-ui, sans-serif", bold: true, fontSize: 48, background: "#FF0000",
+    color: "#00FFD1", fontFamily: "Inter, system-ui, sans-serif", bold: true, fontSize:36, background: "#FFD700",
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -330,7 +331,7 @@ export default function EditorPage() {
           fontFamily: wordStyleDraft.fontFamily,
           fontWeight: wordStyleDraft.bold ? "bold" : "normal",
           fontSize: wordStyleDraft.fontSize,
-          background: wordStyleDraft.background,
+          // background: wordStyleDraft.background,
         } as StyledSpan;
       }
       copy[segmentIndex] = { ...seg, content: wordSpans };
@@ -750,32 +751,34 @@ export default function EditorPage() {
                   <audio ref={musicAudioRef} className="hidden" />
                   <audio ref={previewAudioRef} className="hidden" />
                   {activeSegment && (
-                    <div
-                      {...makePositionHandlers(segments.indexOf(activeSegment))}
-                      className="cc-caption-overlay"
-                      style={{
-                        fontSize: `${globalStyle.fontSize}px`,
-                        background: globalStyle.background,
-                        fontFamily: globalStyle.fontFamily,
-                        left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
-                        top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
-                        transform: "translate(-50%, -50%)",
-                      }}
-                    >
-                      {activeSegment.content.map((span, i) => (
-                        <span key={i} style={{
-                          color: span.color ?? globalStyle.color,
-                          fontWeight: span.fontWeight ?? "normal",
-                          fontFamily: (span as any).fontFamily ?? globalStyle.fontFamily,
-                          fontSize: (span as any).fontSize ?? globalStyle.fontSize,
-                          background: (span as any).background ?? "transparent",
-                          padding: "2px 4px", margin: "0 1px", borderRadius: "3px",
-                        }}>
-                          {span.text}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+  <div
+    {...makePositionHandlers(segments.indexOf(activeSegment))}
+    className="cc-caption-overlay"
+    style={{
+      fontSize: `${globalStyle.fontSize}px`,
+      // background: globalStyle.background,  // ❌ REMOVE THIS LINE
+      fontFamily: globalStyle.fontFamily,
+      left: `${(activeSegment.position?.x ?? 0.5) * 100}%`,
+      top: `${(activeSegment.position?.y ?? 0.8) * 100}%`,
+      transform: "translate(-50%, -50%)",
+    }}
+  >
+    {activeSegment.content.map((span, i) => (
+      <span key={i} style={{
+        color: span.color ?? globalStyle.color,
+        fontWeight: span.fontWeight ?? "bold",  // Changed from "normal"
+        fontFamily: (span as any).fontFamily ?? globalStyle.fontFamily,
+        fontSize: (span as any).fontSize ?? globalStyle.fontSize,
+        background: (span as any).background ?? "transparent",  // This becomes outline in render
+        padding: "2px 4px",
+        margin: "0 1px",
+        borderRadius: "3px",
+      }}>
+        {span.text}
+      </span>
+    ))}
+  </div>
+)}
                 </>
               ) : (
                 <label className="cc-upload-zone">
@@ -1015,10 +1018,10 @@ export default function EditorPage() {
                             <span>Text</span>
                             <input type="color" value={wordStyleDraft.color} onChange={(e) => setWordStyleDraft((p) => ({ ...p, color: e.target.value }))} className="cc-color-input" />
                           </label>
-                          <label className="cc-color-field" title="Background">
+                          {/* <label className="cc-color-field" title="Background">
                             <span>Bg</span>
                             <input type="color" value={wordStyleDraft.background || "#000000"} onChange={(e) => setWordStyleDraft((p) => ({ ...p, background: e.target.value }))} className="cc-color-input" />
-                          </label>
+                          </label> */}
                           <select value={wordStyleDraft.fontFamily} onChange={(e) => setWordStyleDraft((p) => ({ ...p, fontFamily: e.target.value }))} className="cc-mini-sel">
                             <option value="Inter, system-ui, sans-serif">Inter</option>
                             <option value="Poppins, system-ui, sans-serif">Poppins</option>
@@ -1632,15 +1635,32 @@ export default function EditorPage() {
           border-radius: 38px;
         }
         .cc-caption-overlay {
-          pointer-events: auto;
-          position: absolute;
-          padding: 8px 14px;
-          border-radius: 10px;
-          max-width: 88%;
-          text-align: center;
-          cursor: move;
-          box-shadow: 0 2px 20px rgba(0,0,0,0.8);
-        }
+        pointer-events: auto;
+  position: absolute;
+  padding: 4px 8px;           /* Reduced from 8px 14px */
+  border-radius: 0;            /* Changed from 10px - no rounded corners */
+  max-width: 88%;
+  text-align: center;
+  cursor: move;
+  font-weight: 900;            /* ADD THIS - makes text bold in preview */
+  text-shadow:                 /* ADD THIS - creates outline effect in preview */
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000,
+    -1px 0 0 #000,
+    1px 0 0 #000,
+    0 -1px 0 #000,
+    0 1px 0 #000;
+  /* REMOVE: box-shadow: 0 2px 20px rgba(0,0,0,0.8); */
+}
+
+.cc-caption-overlay span[style*="background"] {
+  font-weight: 900 !important;
+  /* The background color becomes the outline color in final render */
+  /* In preview, we can show it as background, but render.py uses it as outline */
+}
+
 
         /* Upload zone */
         .cc-upload-zone {
