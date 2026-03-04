@@ -1235,10 +1235,10 @@ export default function EditorPage() {
                 <span>Text</span>
                 <input type="color" value={globalStyle.color} onChange={(e) => setGlobalStyle((p) => ({ ...p, color: e.target.value }))} className="cc-color-input" />
               </label>
-              <label className="cc-ctrl-field">
+              {/* <label className="cc-ctrl-field">
                 <span>Bg</span>
                 <input type="color" value={globalStyle.background.slice(0, 7)} onChange={(e) => setGlobalStyle((p) => ({ ...p, background: e.target.value }))} className="cc-color-input" />
-              </label>
+              </label> */}
               <label className="cc-ctrl-field">
                 <span>Font</span>
                 <select value={globalStyle.fontFamily} onChange={(e) => setGlobalStyle((p) => ({ ...p, fontFamily: e.target.value }))} className="cc-mini-sel">
