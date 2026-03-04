@@ -159,7 +159,7 @@ def build_ass(segments: List[Segment], global_style: Dict[str, Any]) -> str:
     # Apply 1.2x font size multiplier for render
     # This makes rendered text 20% larger than preview
     frontend_font_size = global_style.get("fontSize", 36)
-    font_size = int(frontend_font_size * 2.0)
+    font_size = int(frontend_font_size * 2.5)
     
     primary_color = hex_to_ass(global_style.get("color", "#FFFFFF"))
     
@@ -217,7 +217,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # 3. Font size override
             if span.fontSize:
                 # Apply same 1.2x multiplier to span font sizes
-                tags.append(f"\\fs{int(span.fontSize * 2.0)}")
+                tags.append(f"\\fs{int(span.fontSize * 2.5)}")
 
             # 4. OUTLINE STYLE (Evenflow approach)
             # For styled words with background, use the background color as outline
@@ -340,7 +340,7 @@ async def render_video(
     resolved_font = get_font_name(g_style.get("fontFamily", "Arial"))
     print(f"[RENDER] Resolution: {resolution}")
     print(f"[RENDER] Font requested: {g_style.get('fontFamily', 'Arial')} -> ASS Fontname: {resolved_font}")
-    print(f"[RENDER] Frontend font size: {g_style.get('fontSize', 36)} -> ASS font size: {int(g_style.get('fontSize', 36) * 2.0)} (1.2x larger)")
+    print(f"[RENDER] Frontend font size: {g_style.get('fontSize', 36)} -> ASS font size: {int(g_style.get('fontSize', 36) * 2.5)} (1.2x larger)")
     print(f"[RENDER] FONTS_DIR exists: {FONTS_DIR.exists()}, fonts copied: {list(ass_file_dir.glob('*.ttf'))}")
     print(f"[RENDER] FFmpeg filter: {subtitles_filter}")
     print(f"[RENDER] Working directory: {tmp}")
