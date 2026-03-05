@@ -39,7 +39,7 @@ export default function SignupPage() {
     <main className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md border border-gray-700 rounded-xl bg-black p-6">
         <h1 className="text-xl font-semibold text-white">Create account</h1>
-        <p className="text-sm text-gray-400 mt-1">Start using CaptionCraft</p>
+        <p className="text-sm text-gray-400 mt-1">Start creating captions in Hindi, Marathi, Hinglish & English</p>
 
         {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
 

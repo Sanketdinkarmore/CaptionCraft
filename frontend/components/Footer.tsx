@@ -27,7 +27,7 @@ const Footer = () => {
               <span className="text-lg font-black text-foreground">CaptionCraft</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Smart Hinglish subtitles for creators who want to move fast.
+              Smart captions in Hindi, Marathi, Hinglish & English for creators who want to move fast.
             </p>
             {/* Social links */}
             <div className="flex items-center gap-3 pt-4">

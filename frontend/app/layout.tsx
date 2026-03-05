@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CaptionCraft - Smart Hinglish Subtitles for Your Videos",
-  description: "Upload a video, auto-generate Hinglish subtitles, customize fonts and colors, and export SRT or a fully rendered video with burned-in captions.",
+  title: "CaptionCraft - Smart Captions in Hindi, Marathi, Hinglish & English",
+  description:
+    "Upload a video, auto-generate captions in Hindi, Marathi, Hinglish, or polished English, customize fonts and colors, and export SRT or a fully rendered video with burned-in captions.",
 };
 
 export default function RootLayout({

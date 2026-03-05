@@ -24,9 +24,9 @@ const CTABanner = () => {
       <div className="container mx-auto max-w-6xl relative z-10">
         <div className="relative rounded-3xl overflow-hidden border-2 border-primary/20 shadow-2xl shadow-primary/10">
           {/* Base gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-background to-accent/15" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_hsl(var(--primary)/0.15)_0%,_transparent_50%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_hsl(var(--accent)/0.12)_0%,_transparent_50%)]" />
+          <div className="absolute inset-0 bg-linear-to-br from-primary/15 via-background to-accent/15" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(var(--primary)/0.15)_0%,transparent_50%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(var(--accent)/0.12)_0%,transparent_50%)]" />
           
           {/* Decorative grid pattern */}
           <div 
@@ -52,7 +52,7 @@ const CTABanner = () => {
               <h2 className="font-display text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-3 leading-tight">
                 Ready to captivate
                 <br />
-                <span className="bg-gradient-to-r from-primary to-accent-foreground bg-clip-text text-transparent">
+                <span className="bg-linear-to-r from-primary to-accent-foreground bg-clip-text text-transparent">
                   your audience?
                 </span>
               </h2>
@@ -97,12 +97,12 @@ const CTABanner = () => {
                   preload="metadata"
                   aria-label="CaptionCraft demo - creative video captions"
                 />
-                <div className="absolute inset-0 bg-gradient-to-l from-background/40 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-l from-background/40 via-transparent to-transparent" />
                 {/* Subtle overlay card */}
                 <div className="absolute bottom-4 right-4 left-4 bg-background/80 backdrop-blur-md rounded-xl p-3 border border-border/40 shadow-lg">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-xs font-medium text-foreground">Hinglish captions ready</span>
+                    <span className="text-xs font-medium text-foreground">Captions ready in seconds</span>
                   </div>
                 </div>
               </div>

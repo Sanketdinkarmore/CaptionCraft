@@ -16,8 +16,8 @@ const features = [
   },
   {
     image: featureAi,
-    title: "AI Hinglish Magic",
-    description: "Intelligent transcription for perfect mixed-language subtitles.",
+    title: "AI Multilingual Magic",
+    description: "Generate captions in Hindi, Marathi, Hinglish, or polished English in seconds.",
     icon: <Zap className="w-5 h-5 text-primary-foreground" />,
   },
   {

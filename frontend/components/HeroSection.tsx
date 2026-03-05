@@ -129,7 +129,7 @@ const HeroSection = () => {
                   <Sparkles className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-12" />
                 </span>
                 <span className="text-sm font-semibold text-foreground">
-                  Hinglish captions that feel native
+                  Captions in Hindi, Marathi, Hinglish & English
                 </span>
                 <span className="text-xs text-muted-foreground hidden sm:inline">• export SRT / MP4</span>
                 <ArrowRight className="h-4 w-4 text-primary/70 transition-transform duration-300 group-hover:translate-x-0.5" />
@@ -149,7 +149,7 @@ const HeroSection = () => {
               </h1>
 
               <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-                Drop a clip → get <span className="text-foreground font-semibold">Hinglish subtitles</span> with clean timing, on-brand styles, and instant exports.
+                Drop a clip → get <span className="text-foreground font-semibold">subtitles in Hindi, Marathi, Hinglish, or polished English</span> with clean timing, on-brand styles, and instant exports.
               </p>
             </div>
 
@@ -158,7 +158,7 @@ const HeroSection = () => {
               {[
                 { label: "Auto-sync", icon: <Zap className="h-4 w-4" /> },
                 { label: "Reels-style presets", icon: <Sparkles className="h-4 w-4" /> },
-                { label: "Hindi + English", icon: <span className="text-[13px] font-bold">ह + En</span> },
+                { label: "4 languages", icon: <span className="text-[13px] font-bold">ह • मर • En</span> },
                 { label: "One-click export", icon: <ArrowRight className="h-4 w-4" /> },
               ].map((chip) => (
                 <div
@@ -243,7 +243,7 @@ const HeroSection = () => {
                     <div className="relative">
                       <img
                         src={heroImageSrc}
-                        alt="Video editing workspace with Hinglish subtitles"
+                        alt="Video editing workspace with multilingual subtitles"
                         className="w-full h-auto"
                       />
 
