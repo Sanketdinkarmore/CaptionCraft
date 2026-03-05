@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login, setToken, type AuthResponse, loginWithGoogleCredential } from "@/lib/authClient";
 import PasswordInput from "@/components/PasswordInput";
+import Navbar from "@/components/Navbar";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -59,53 +60,122 @@ export default function LoginPage() {
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md border border-gray-700 rounded-xl bg-black p-6">
-        <h1 className="text-xl font-semibold text-white">Login</h1>
-        <p className="text-sm text-gray-400 mt-1">Continue to CaptionCraft</p>
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <Navbar />
+      <main className="flex-1 flex items-center justify-center px-4 py-10 pt-24">
+        <div className="mx-auto grid w-full max-w-5xl gap-10 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-center">
+          {/* Left: copy that matches landing tone */}
+          <section className="space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground shadow-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_0_3px_rgba(168,85,247,0.25)]" />
+              Pick up where you left off
+            </div>
 
-        {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
+            <div className="space-y-3">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight">
+                Welcome back to{" "}
+                <span className="hero-gradient-text">CaptionCraft</span>
+              </h1>
+              <p className="max-w-xl text-sm sm:text-base text-muted-foreground">
+                Log in to keep editing subtitles, switch languages on the fly, and export sharable
+                clips in a few clicks.
+              </p>
+            </div>
 
-        <form onSubmit={onSubmit} className="mt-5 space-y-3">
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
-            type="email"
-            className="w-full px-3 py-2 rounded border border-gray-600 bg-black text-white"
-            required
-          />
-          <PasswordInput
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password"
-            required
-          />
-          <button
-            disabled={loading}
-            className="w-full px-3 py-2 rounded border border-blue-600 text-blue-300 disabled:opacity-50"
-          >
-            {loading ? "Please wait..." : "Login"}
-          </button>
-        </form>
+            <div className="glass-card p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between text-xs text-secondary-foreground/80">
+                <span className="font-medium">Recent project</span>
+                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+                  Reels • Auto‑sync
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                “Mummy kya hua?” • Hinglish preset • Bold white with soft shadow, perfect for mobile.
+              </p>
+            </div>
+          </section>
 
-        <div className="mt-3">
-          <a className="text-sm text-gray-300 underline" href="/forgot-password">
-            Forgot password?
-          </a>
+          {/* Right: login card */}
+          <section className="flex items-center justify-center">
+            <div className="glass-card w-full max-w-md p-6 sm:p-7 shadow-lg">
+              <header className="space-y-1">
+                <h2 className="text-xl sm:text-2xl font-semibold">Log in</h2>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Continue to your CaptionCraft studio.
+                </p>
+              </header>
+
+              {error && (
+                <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                  {error}
+                </p>
+              )}
+
+              <form onSubmit={onSubmit} className="mt-6 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-secondary">Email</label>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@studio.in"
+                    type="email"
+                    className="block w-full rounded-xl border border-input bg-card px-3 py-2.5 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:border-primary/70"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-secondary">Password</label>
+                  <PasswordInput
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Your password"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span />
+                  <a
+                    className="font-semibold text-primary underline-offset-4 hover:underline"
+                    href="/forgot-password"
+                  >
+                    Forgot password?
+                  </a>
+                </div>
+
+                <button
+                  disabled={loading}
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-linear-to-r from-primary via-pink-500 to-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Logging you in..." : "Log in"}
+                </button>
+              </form>
+
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="h-px flex-1 bg-border" />
+                  <span>or continue with</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+
+                <GoogleButton clientId={googleClientId} onCredential={onGoogleCredential} />
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>New to CaptionCraft?</span>
+                  <a
+                    className="font-semibold text-primary underline-offset-4 hover:underline"
+                    href="/signup"
+                  >
+                    Create an account
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
-
-        <div className="my-4 border-t border-gray-800" />
-
-        <div className="space-y-2">
-          <a className="text-sm text-gray-300 underline" href="/signup">
-            Create an account
-          </a>
-
-          <GoogleButton clientId={googleClientId} onCredential={onGoogleCredential} />
-        </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
@@ -119,7 +189,7 @@ function GoogleButton({
   // Render nothing if missing env
   if (!clientId) {
     return (
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-slate-400">
         Google login disabled (missing <code>NEXT_PUBLIC_GOOGLE_CLIENT_ID</code>).
       </p>
     );
@@ -147,7 +217,12 @@ function GoogleButton({
     document.head.appendChild(script);
   }
 
-  return <div id="cc-google-btn" className="flex justify-center" />;
+  return (
+    <div
+      id="cc-google-btn"
+      className="flex justify-center rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+    />
+  );
 }
 
 
