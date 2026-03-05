@@ -225,6 +225,7 @@ export default function EditorPage() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [collectionFilterId, setCollectionFilterId] = useState<string | null>(null);
   const [collectionsDropdownOpen, setCollectionsDropdownOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("hinglish");  // Default to hinglish
 
   useEffect(() => {
     const token = getToken();
@@ -354,8 +355,14 @@ export default function EditorPage() {
     setUploadProgress(10);
     try {
       setUploadProgress(30);
-      const data = await uploadAndTranscribe(file);
+      const data = await uploadAndTranscribe(file, selectedLanguage);
       setUploadProgress(80);
+
+      if(data.selected_language) {
+        console.log("Selected language: ", data.selected_language);
+      }
+
+
       const withContent: Segment[] = data.segments.map((raw: any) => makeSegmentFromText(raw.start, raw.end, raw.text));
       const processed: Segment[] = withContent.flatMap((seg) => splitSegmentBySentences(seg));
       let lastEnd = 0;
@@ -694,6 +701,23 @@ export default function EditorPage() {
             <span>Tap to choose from previous videos or upload new</span>
             <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
           </label>
+
+          <div className="cc-language-selector">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+            </svg>
+            <select 
+              value={selectedLanguage} 
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              className="cc-language-select"
+            >
+              <option value="hinglish">🇮🇳 Hinglish</option>
+              <option value="hindi">हिं Hindi</option>
+              <option value="marathi">मराठी Marathi</option>
+              <option value="english">🇬🇧 English</option>
+            </select>
+            </div>
+
         </div>
 
         <div className="cc-topbar-right">
@@ -1504,6 +1528,33 @@ export default function EditorPage() {
         }
         .cc-video-picker svg { flex-shrink: 0; opacity: 0.6; transition: opacity 0.2s; }
         .cc-video-picker:hover svg { opacity: 1; }
+
+
+        .cc-language-selector {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cc-language-selector svg {
+          color: #64748b;
+          flex-shrink: 0;
+        }
+        .cc-language-select {
+          padding: 5px 10px;
+          border-radius: 7px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.025);
+          color: #94a3b8;
+          font-size: 12px;
+          cursor: pointer;
+          outline: none;
+          transition: all 0.2s;
+        }
+        .cc-language-select:hover {
+          background: rgba(168,85,247,0.07);
+          border-color: rgba(168,85,247,0.25);
+          color: #d8b4fe;
+        }
 
         .cc-export-group {
           display: flex; align-items: stretch;

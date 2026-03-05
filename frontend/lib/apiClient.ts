@@ -39,11 +39,16 @@ type RawSegment = {
   start: number;
   end: number;
   text: string;
+  language?: string;
 };
 
-export async function uploadAndTranscribe(file: File) {
+export async function uploadAndTranscribe(
+  file: File, 
+  language: string  // REQUIRED - no default
+) {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("language", language);
 
   const res = await fetch(`${API_BASE}/transcribe`, {
     method: "POST",
@@ -55,7 +60,10 @@ export async function uploadAndTranscribe(file: File) {
     throw new Error(`Transcription failed: ${res.status}`);
   }
 
-  return (await res.json()) as { segments: RawSegment[] };
+  return (await res.json()) as { 
+    segments: RawSegment[];
+    selected_language?: string;
+  };
 }
 
 // UPDATED: Now accepts {segments, globalStyle, videoUrl, resolution, musicUrl?, musicVolume?}
@@ -122,13 +130,6 @@ export type VideoUploadResponse = {
   thumbnail_url?: string;
 };
 
-/**
- * Upload a video file to Cloudinary
- * @param file The video file to upload
- * @param generateThumbnail Whether to auto-generate thumbnail (default: true)
- * @param onProgress Optional progress callback (0-100)
- * @returns Cloudinary upload response with video_url and thumbnail_url
- */
 export async function uploadVideo(
   file: File,
   generateThumbnail: boolean = true,
@@ -138,7 +139,6 @@ export async function uploadVideo(
   formData.append("video", file);
   formData.append("generate_thumbnail", generateThumbnail.toString());
 
-  // Use XMLHttpRequest for progress tracking
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
@@ -185,11 +185,6 @@ export async function uploadVideo(
   });
 }
 
-/**
- * Upload a custom thumbnail image
- * @param file The image file to upload (jpg, png, webp)
- * @returns Cloudinary URL of uploaded thumbnail
- */
 export async function uploadThumbnail(file: File): Promise<{ thumbnail_url: string }> {
   const formData = new FormData();
   formData.append("image", file);
@@ -244,11 +239,9 @@ export type ProjectUpdate = {
   video_filename?: string | null;
   video_url?: string | null;
   thumbnail_url?: string | null;
-   // To move project between collections or clear it
   collection_id?: string | null;
 };
 
-// Save a new project
 export async function saveProject(project: ProjectCreate): Promise<Project> {
   const res = await fetch(`${API_BASE}/projects`, {
     method: "POST",
@@ -267,7 +260,6 @@ export async function saveProject(project: ProjectCreate): Promise<Project> {
   return res.json();
 }
 
-// Update an existing project
 export async function updateProject(projectId: string, update: ProjectUpdate): Promise<Project> {
   const res = await fetch(`${API_BASE}/projects/${projectId}`, {
     method: "PUT",
@@ -286,7 +278,6 @@ export async function updateProject(projectId: string, update: ProjectUpdate): P
   return res.json();
 }
 
-// Load a specific project
 export async function loadProject(projectId: string): Promise<Project> {
   const res = await fetch(`${API_BASE}/projects/${projectId}`, { headers: { ...getAuthHeaders() } });
 
@@ -298,7 +289,6 @@ export async function loadProject(projectId: string): Promise<Project> {
   return res.json();
 }
 
-// List all projects, optionally filtered by collection
 export async function listProjects(collectionId?: string): Promise<Project[]> {
   const url = collectionId
     ? `${API_BASE}/projects?collection_id=${encodeURIComponent(collectionId)}`
@@ -313,7 +303,6 @@ export async function listProjects(collectionId?: string): Promise<Project[]> {
   return res.json();
 }
 
-// Delete a project
 export async function deleteProject(projectId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/projects/${projectId}`, {
     method: "DELETE",
@@ -332,9 +321,6 @@ export type ShareTokenResponse = {
   share_url: string;
 };
 
-/**
- * Generate or regenerate share token for a project
- */
 export async function generateShareToken(projectId: string): Promise<ShareTokenResponse> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/share`, {
     method: "POST",
@@ -349,9 +335,6 @@ export async function generateShareToken(projectId: string): Promise<ShareTokenR
   return res.json();
 }
 
-/**
- * Get a shared project by share token (no authentication required)
- */
 export async function getSharedProject(shareToken: string): Promise<Project> {
   const res = await fetch(`${API_BASE}/shared/${shareToken}`);
 
@@ -363,9 +346,6 @@ export async function getSharedProject(shareToken: string): Promise<Project> {
   return res.json();
 }
 
-/**
- * Revoke share token for a project
- */
 export async function revokeShareToken(projectId: string): Promise<void> {
   const res = await fetch(`${API_BASE}/projects/${projectId}/share`, {
     method: "DELETE",
